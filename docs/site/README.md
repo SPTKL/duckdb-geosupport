@@ -3,7 +3,8 @@
 Public URL: <https://sptkl.github.io/duckdb-geosupport/>.
 
 A single static page for binary download, setup, DuckDB usage, sample output,
-functions, and errors. No client-side JavaScript or external assets.
+functions, and Geosupport return codes and messages. No client-side JavaScript or external assets.
+The Colab walkthrough is linked from the page and included as a notebook download.
 
 ## Build and preview
 
@@ -15,9 +16,25 @@ python3 -m http.server 8769 --directory build/site
 ```
 
 Open <http://localhost:8769>. Edit `docs/site/index.html` and `style.css`.
-The build fills the sample-output tables from captured results and derives the
-function-code and diagnostic catalogs from `resources/layouts.json` and `src/*.cpp`.
+The build fills the sample-output tables, including the rejected-address example,
+from captured results and derives the function-code catalog from
+`resources/layouts.json`. The error section covers NYC Geosupport return codes
+and messages.
 Build from the repository root; publish only `build/site`.
+
+## Colab walkthrough
+
+Edit `notebooks/geosupport_quickstart.ipynb`. The README and site link to its
+`main` branch version through Colab; the site build also copies the same notebook
+to `build/site/notebooks/` for direct download. Notebook changes trigger Pages.
+Keep committed outputs empty and use a Python 3 CPU runtime to run the cells in
+order. Optional upload, comparison, and download cells are disabled by default.
+
+The notebook pins DuckDB 1.4.4 and an extension source commit, builds on the Linux
+runtime, and downloads the official 26C bundle through `gs_install`. When changing
+the source pin or DuckDB version, rerun the notebook from setup through export in
+a fresh Linux x86-64 environment. Also exercise the optional quarter comparison;
+the CSV upload and download controls require Colab's UI.
 
 ## Deployment
 
@@ -27,7 +44,9 @@ Source → GitHub Actions** once. Asset paths are relative for the project URL.
 
 The binary download points to a verified successful CI artifact. There is no
 versioned release yet. Actions artifacts expire; update the link when a new
-binary is published. The page includes source-build instructions as a fallback.
+binary is published. Setup covers the Linux binary and the published `26c`
+container for Macs with Apple Silicon. Source-build instructions live in the
+repository README.
 
 ## Refresh samples
 

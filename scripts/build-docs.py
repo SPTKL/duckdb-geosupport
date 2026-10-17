@@ -31,33 +31,21 @@ def main():
     columns = ['bbl', 'bin', 'latitude', 'longitude', 'grc', 'grc2']
     layouts = json.loads((ROOT / 'resources/layouts.json').read_text())
     codes = [{'Code': code, 'Aliases': ', '.join(alias for alias, target in layouts['aliases'].items() if target == code) or '—'} for code in layouts['functions']]
-    diagnostics = []
-    for path in sorted((ROOT / 'src').glob('*.cpp')):
-        for match in re.finditer(r'throw (?:std::runtime_error|fs::filesystem_error)\((.*?)\);', path.read_text(), re.S):
-            expr = match.group(1)
-            if not expr.startswith(('"', 'std::string("', 'value +')):
-                continue
-            literals = re.findall(r'"((?:[^"\\]|\\.)*)"', expr)
-            if not literals: continue  # Forwarded library/worker errors, not fixed messages.
-            message = ' … '.join(literals)
-            # Keep dynamically appended paths/system messages distinguishable.
-            if len(literals) == 1 and not re.fullmatch(r'"(?:[^"\\]|\\.)*"', expr.strip()):
-                message += ' …'
-            if expr.lstrip().startswith('value +'): message = '… ' + message
-            item = {'Source': path.name, 'Message': message}
-            if item not in diagnostics: diagnostics.append(item)
     source = (SOURCE / 'index.html').read_text()
     replacements = {
         'FIRST_OUTPUT': table([current['worth-st']], columns),
         'BATCH_OUTPUT': table([dict(id=i, **current[key]) for i, key in enumerate(('worth-st', 'empire-state', 'queens', 'rejected'), 1)], ['id'] + columns),
         'REJECT_OUTPUT': table([dict(id=4, **current['rejected'])], ['id', 'grc', 'grc2', 'message', 'message2']),
         'FUNCTION_CODES': table(codes, ['Code', 'Aliases']),
-        'DIAGNOSTICS': table(diagnostics, ['Source', 'Message'], 'diagnostics'),
+        'ERROR_OUTPUT': table([{'Field': field, 'Value': current['rejected'][field]}
+                               for field in ('grc', 'message', 'grc2', 'message2', 'bbl', 'bin', 'latitude', 'longitude')],
+                              ['Field', 'Value'], 'error-output'),
     }
     for key, fragment in replacements.items():
         assert source.count('<!-- ' + key + ' -->') == 1
         source = source.replace('<!-- ' + key + ' -->', fragment)
-    assert not re.search(r'python|browser|playground', source, re.I)
+    assert not re.search(r'<!-- [A-Z_]+ -->', source), 'Unfilled documentation placeholder'
+    assert '<script' not in source.lower(), 'The documentation page must stay static'
     DEST.mkdir(parents=True, exist_ok=True)
     # Remove generated assets from the earlier interactive prototype.
     for relative in ('app.js', 'data/samples.sql'):
@@ -68,7 +56,9 @@ def main():
     (DEST / 'data').mkdir(exist_ok=True)
     for name in ('samples.json', 'provenance.json'):
         shutil.copyfile(SOURCE / 'data' / name, DEST / 'data' / name)
-    print(f'Built {DEST}: {len(rows)} sample rows, {len(codes)} function codes, {len(diagnostics)} diagnostic messages')
+    (DEST / 'notebooks').mkdir(exist_ok=True)
+    shutil.copyfile(ROOT / 'notebooks/geosupport_quickstart.ipynb', DEST / 'notebooks/geosupport_quickstart.ipynb')
+    print(f'Built {DEST}: {len(rows)} sample rows, {len(codes)} function codes')
 
 if __name__ == '__main__':
     main()

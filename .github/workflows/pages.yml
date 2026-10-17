@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - 'docs/site/**'
+      - 'notebooks/**'
       - 'scripts/build-docs.py'
       - 'resources/layouts.json'
       - 'src/**'
@@ -11,6 +12,7 @@ on:
   pull_request:
     paths:
       - 'docs/site/**'
+      - 'notebooks/**'
       - 'scripts/build-docs.py'
       - 'resources/layouts.json'
       - 'src/**'

@@ -4,6 +4,13 @@
 setup, SQL examples, sample output, and the function/error reference.
 See [site maintenance](docs/site/README.md) to build or publish it.
 
+**[Open the walkthrough in Google Colab](https://colab.research.google.com/github/SPTKL/duckdb-geosupport/blob/main/notebooks/geosupport_quickstart.ipynb)**
+— build and load the extension, install 26C, geocode a table, inspect Geosupport
+return codes, and export CSV/Parquet results with provenance. Use a Python 3 CPU
+runtime; initial setup takes several minutes and several GiB of disk. Optional
+cells accept your own CSV and compare quarters. No Docker or GitHub token is needed.
+[View or download the notebook](notebooks/geosupport_quickstart.ipynb).
+
 A native DuckDB extension for NYC Geosupport, with quarterly release management
 and typed SQL results. **Version 0.2.0 removes Python from the runtime.**
 
