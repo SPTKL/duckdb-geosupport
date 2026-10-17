@@ -1,149 +1,15 @@
 #include "duckdb_extension.h"
 #include "nlohmann/json.hpp"
-#include <cerrno>
-#include <chrono>
-#include <cstdlib>
-#include <cstring>
-#include <dlfcn.h>
-#include <fcntl.h>
-#include <filesystem>
+#include "native.hpp"
 #include <memory>
-#include <mutex>
-#include <poll.h>
-#include <spawn.h>
-#include <signal.h>
 #include <stdexcept>
 #include <string>
-#include <sys/socket.h>
-#include <sys/wait.h>
-#include <unistd.h>
 
-extern char **environ;
 using json = nlohmann::json;
-namespace fs = std::filesystem;
 DUCKDB_EXTENSION_EXTERN
 
 namespace {
-constexpr size_t MAX_FRAME = 128 * 1024 * 1024;
-void LibraryAnchor() {}
-
-class Runtime {
-    int fd = -1;
-    pid_t pid = -1;
-    std::string buffered;
-    std::mutex mutex;
-
-    void Start() {
-        if (fd >= 0) return;
-        Dl_info library{};
-        if (!dladdr(reinterpret_cast<void *>(&LibraryAnchor), &library))
-            throw std::runtime_error("Cannot locate extension runtime directory");
-        fs::path script = fs::absolute(library.dli_fname).parent_path() / "runtime/manager.py";
-        if (!fs::is_regular_file(script)) throw std::runtime_error("Missing runtime/manager.py beside the extension binary");
-        std::string python = std::getenv("GEOSUPPORT_PYTHON") ? std::getenv("GEOSUPPORT_PYTHON") : "python3";
-        std::string script_string = script.string();
-        int sockets[2];
-        if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0) throw std::runtime_error("socketpair failed");
-        fcntl(sockets[0], F_SETFD, FD_CLOEXEC);
-        fcntl(sockets[1], F_SETFD, FD_CLOEXEC);
-#ifdef __APPLE__
-        int yes = 1;
-        setsockopt(sockets[0], SOL_SOCKET, SO_NOSIGPIPE, &yes, sizeof(yes));
-#endif
-        posix_spawn_file_actions_t actions;
-        posix_spawn_file_actions_init(&actions);
-        posix_spawn_file_actions_adddup2(&actions, sockets[1], STDIN_FILENO);
-        posix_spawn_file_actions_adddup2(&actions, sockets[1], STDOUT_FILENO);
-        posix_spawn_file_actions_addclose(&actions, sockets[0]);
-        posix_spawn_file_actions_addclose(&actions, sockets[1]);
-        char *argv[] = {python.data(), const_cast<char *>("-u"), script_string.data(), nullptr};
-        int error = posix_spawnp(&pid, python.c_str(), &actions, nullptr, argv, environ);
-        posix_spawn_file_actions_destroy(&actions);
-        close(sockets[1]);
-        if (error) {
-            close(sockets[0]);
-            pid = -1;
-            throw std::runtime_error("Cannot start Geosupport runtime: " + std::string(strerror(error)));
-        }
-        fd = sockets[0];
-        fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
-    }
-
-    void Wait(short event, const std::chrono::steady_clock::time_point &deadline) {
-        while (true) {
-            auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()).count();
-            if (remaining <= 0) throw std::runtime_error("Geosupport runtime timed out (300 seconds)");
-            pollfd descriptor{fd, event, 0};
-            int result = poll(&descriptor, 1, static_cast<int>(remaining));
-            if (result < 0 && errno == EINTR) continue;
-            if (result < 0) throw std::runtime_error("Runtime poll failed");
-            if (!result) continue;
-            if (descriptor.revents & event) return;
-            throw std::runtime_error("Geosupport runtime disconnected; inspect stderr");
-        }
-    }
-
-    void Stop() noexcept {
-        if (fd >= 0) { close(fd); fd = -1; }
-        buffered.clear();
-        if (pid > 0) {
-            // Closing stdin lets the coordinator close its workers gracefully.
-            for (int n = 0; n < 100; n++) {
-                int status;
-                auto result = waitpid(pid, &status, WNOHANG);
-                if (result == pid || (result < 0 && errno == ECHILD)) { pid = -1; return; }
-                usleep(100000);
-            }
-            kill(pid, SIGTERM);
-            for (int n = 0; n < 20; n++) {
-                if (waitpid(pid, nullptr, WNOHANG) == pid) { pid = -1; return; }
-                usleep(100000);
-            }
-            kill(pid, SIGKILL);
-            waitpid(pid, nullptr, 0);
-            pid = -1;
-        }
-    }
-
-public:
-    ~Runtime() { Stop(); }
-    json Request(const json &request) {
-        std::lock_guard<std::mutex> lock(mutex);
-        Start();
-        json response;
-        try {
-            std::string data = request.dump() + "\n";
-            if (data.size() > MAX_FRAME) throw std::runtime_error("Request exceeds 128 MiB");
-            auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(300);
-            size_t sent = 0;
-            while (sent < data.size()) {
-                Wait(POLLOUT, deadline);
-#ifdef MSG_NOSIGNAL
-                ssize_t n = send(fd, data.data() + sent, data.size() - sent, MSG_NOSIGNAL);
-#else
-                ssize_t n = send(fd, data.data() + sent, data.size() - sent, 0);
-#endif
-                if (n < 0 && (errno == EINTR || errno == EAGAIN)) continue;
-                if (n <= 0) throw std::runtime_error("Runtime write failed");
-                sent += n;
-            }
-            while (buffered.find('\n') == std::string::npos) {
-                Wait(POLLIN, deadline);
-                char buffer[65536];
-                ssize_t n = recv(fd, buffer, sizeof(buffer), 0);
-                if (n < 0 && (errno == EINTR || errno == EAGAIN)) continue;
-                if (n <= 0) throw std::runtime_error("Runtime exited before responding; inspect stderr");
-                buffered.append(buffer, n);
-                if (buffered.size() > MAX_FRAME) throw std::runtime_error("Runtime response exceeds 128 MiB");
-            }
-            size_t end = buffered.find('\n');
-            response = json::parse(buffered.substr(0, end));
-            buffered.erase(0, end + 1);
-        } catch (...) { Stop(); throw; }
-        if (response.contains("error")) throw std::runtime_error(response["error"].get<std::string>());
-        return response.at("result");
-    }
-};
+using Runtime = gs::Manager;
 
 struct FunctionData { std::shared_ptr<Runtime> runtime; std::string operation; };
 struct BoundData { json request; };

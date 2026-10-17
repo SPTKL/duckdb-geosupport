@@ -51,11 +51,12 @@ not a macOS library; macOS requires Docker with a Linux/amd64 runtime. Windows a
 Wasm builds are deferred. Community publication is the next delivery milestone;
 development builds require DuckDB's explicit unsigned-extension setting.
 
-The native extension owns a local Python coordinator; that coordinator owns one
-worker per immutable bundle. The vendored MIT-licensed wrapper supplies field
-layouts and parsing. A later native worker can replace it behind the same batch
-protocol if profiling justifies that work. Calls on a coordinator are serialized
-initially; multi-worker scheduling is a follow-up, not an assumed speedup.
+The current native extension owns a C++ manager and one isolated C++ worker per
+immutable bundle. The worker calls NYC's C API directly. Layouts and formatting
+semantics derive from the MIT-licensed wrapper, which is now only a test oracle.
+Calls are serialized; multi-worker scheduling is a follow-up, not an assumed
+speedup. The 0.1 Python coordinator described in the original delivery stages
+was replaced in 0.2.
 
 The bundle store is outside the DuckDB database. Persist bundle identifiers with
 materialized results. A release label is never silently rebound to different bytes.
@@ -80,7 +81,15 @@ evidence and the remaining production work. The public source repository is
 [SPTKL/duckdb-geosupport](https://github.com/SPTKL/duckdb-geosupport).
 Community extension publication has not been performed.
 
-Stage 6 is planned and remains unimplemented. Community CI already supports C API
-extensions; the principal distribution gap is our external worker directory.
-The publication plan proposes embedding those assets while initially retaining
-Python as an explicit runtime prerequisite.
+## Native rewrite — 0.2.0
+
+The Python coordinator and worker have been replaced with C++. The manager now
+runs inside the extension and the isolated native worker calls NYC's C API directly.
+The executable and layout metadata are embedded, removing the adjacent-directory
+and Python runtime requirements. Existing bundle identities remain compatible.
+Native Make builds and C++ test harnesses are also available. See
+[native-runtime.md](native-runtime.md) for current validation and limits;
+the earlier stage descriptions above record the original implementation.
+
+Stage 6 remains partially complete: standalone packaging is implemented, while
+community toolchain integration, runtime hardening and submission remain pending.

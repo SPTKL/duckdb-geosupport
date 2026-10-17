@@ -2,8 +2,8 @@
 
 Target: publish `geosupport` through
 [`duckdb/community-extensions`](https://github.com/duckdb/community-extensions).
-This is the distribution target for the next milestone. The current 0.1 build
-is a development prototype and is not ready for a submission.
+This is the distribution target for the next milestone. The current 0.2 build
+is a development release and is not ready for a submission.
 
 ## Intended user experience
 
@@ -64,16 +64,13 @@ mandates every design choice.
    provide SQLLogicTests runnable through the standard test target. Keep Python
    tests for the bundle store. Our existing script and Debian development image
    do not establish portable community-build compatibility.
-2. **Remove the adjacent-directory installation requirement.** The proposed
-   first-release path embeds the coordinator, vendored wrapper, notices, and
-   catalog as resources in the extension. Materialize them atomically into a
-   private, content-addressed runtime cache on explicit runtime use, validating
-   ownership, permissions, symlinks and checksums before execution. Never depend
-   on the checkout or download mutable worker code. Python remains a documented
-   system prerequisite for this path; a native worker is a later option, not a
-   community requirement. Prove installation using only the resulting binary in
-   a clean environment with the documented prerequisites. No writes, downloads
-   or worker startup during LOAD or EXPLAIN.
+2. **Standalone runtime packaging: implemented in 0.2.** The extension embeds a
+   C++ worker, field layouts, and the catalog. Packages also carry license notices.
+   Native Linux worker execution materializes a verified executable in a private
+   cache. Python is no longer a runtime prerequisite. Tests load a lone extension
+   binary and exercise Linux geocoding without Python on PATH. Preserve these
+   properties in the community build, including dependency portability and
+   clean-host tests.
 3. **Ship Linux x86-64 first.** Target the community `linux_amd64` toolchain and
    test the actual NYC shared libraries on the documented runtime baseline.
    Compiler portability alone does not establish Geosupport engine compatibility.
@@ -102,8 +99,8 @@ mandates every design choice.
    and add `extensions/geosupport/description.yml` in the community repository.
    Include version, description, MIT adapter license, platform exclusions,
    toolchains and a minimal SQL example. Document the separate NYC engine/data
-   terms and required Python runtime. Build-time `requires_toolchains` does not
-   install Python for end users. Recheck name availability, run upstream CI, and
+   terms and system library requirements. Build-time `requires_toolchains` does
+   not install runtime dependencies for end users. Recheck name availability, run upstream CI, and
    submit only after the above gates pass. No descriptor PR has been opened.
 
 ## Maintenance after publication
@@ -116,6 +113,6 @@ catalog updates through reviewed extension releases initially; keep the existing
 explicit local catalog override for controlled deployments. Do not add automatic
 remote catalog refresh or silently select a new default quarter.
 
-Current blockers are build integration, standalone runtime packaging, runtime
-hardening and release-matrix validation. The source repository is public under
+Current blockers are community build integration, runtime hardening, and
+release-matrix validation. Standalone runtime packaging is implemented. The source repository is public under
 SPTKL; the community descriptor comes after those implementation steps.

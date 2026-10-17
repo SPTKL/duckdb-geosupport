@@ -1,0 +1,105 @@
+name: CI and ready-to-use images
+on:
+  push:
+    branches: [main, 'codex/**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish tested images to GHCR (main or version tags only)
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+jobs:
+  native:
+    uses: ./.github/workflows/test.yml
+  images:
+    needs: native
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        release: [26b, 26c]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Image names and publication policy
+        id: image
+        env:
+          REPOSITORY: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          PUBLISH_REQUESTED: ${{ inputs.publish }}
+          RELEASE: ${{ matrix.release }}
+        run: |
+          image="ghcr.io/${REPOSITORY,,}"
+          echo "name=$image" >> "$GITHUB_OUTPUT"
+          publish=false
+          if [[ "$EVENT" == push || "$PUBLISH_REQUESTED" == true ]]; then
+            if [[ "$REF" == refs/heads/main || "$REF" == refs/tags/v* ]]; then publish=true; fi
+          fi
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+          {
+            echo "tags<<TAGS"
+            echo "$image:sha-${GITHUB_SHA}-$RELEASE"
+            if [[ "$REF" == refs/heads/main ]]; then
+              echo "$image:$RELEASE"
+              if [[ "$RELEASE" == 26c ]]; then echo "$image:latest"; fi
+            fi
+            if [[ "$REF" == refs/tags/v* ]]; then
+              echo "$image:${REF#refs/tags/}-$RELEASE"
+            fi
+            echo TAGS
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image locally for validation
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: geosupport-test:${{ matrix.release }}
+          build-args: GEOSUPPORT_RELEASE=${{ matrix.release }}
+          cache-from: type=gha,scope=geosupport-${{ matrix.release }}
+          cache-to: type=gha,mode=max,scope=geosupport-${{ matrix.release }}
+      - name: End-to-end test with networking disabled
+        env:
+          RELEASE: ${{ matrix.release }}
+        run: |
+          docker run --rm --network none -i "geosupport-test:$RELEASE" < docker/smoke.sql
+          docker run --rm --network none "geosupport-test:$RELEASE" -no-stdin -c \
+            "SELECT CASE WHEN (gs_address('125','Worth St','Mn')).release='$RELEASE' THEN true ELSE error('Wrong release') END;"
+          docker run --rm --network none --entrypoint sh "geosupport-test:$RELEASE" -c \
+            '! command -v python && ! command -v python3 && ! command -v docker && test "$(id -u)" = 10001'
+      - name: Log in to GitHub Container Registry
+        if: steps.image.outputs.publish == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish the exact tested image
+        if: steps.image.outputs.publish == 'true'
+        env:
+          TAGS: ${{ steps.image.outputs.tags }}
+          RELEASE: ${{ matrix.release }}
+        run: |
+          while IFS= read -r tag; do
+            docker tag "geosupport-test:$RELEASE" "$tag"
+            docker push "$tag"
+          done <<< "$TAGS"
+          {
+            echo "### Published Geosupport $RELEASE"
+            echo '```text'
+            echo "$TAGS"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

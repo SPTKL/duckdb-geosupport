@@ -6,7 +6,7 @@ import zipfile
 
 import pytest
 
-from runtime.manager import Store, safe_extract, sha256
+from native_store import Store, safe_extract, sha256
 
 
 @pytest.fixture
@@ -102,9 +102,8 @@ def test_concurrent_installs_publish_one_identity(package):
 
 def test_offline_install_never_downloads(package, monkeypatch):
     store, archive = package
-    def forbidden(*args, **kwargs):
-        raise AssertionError("Unexpected network access")
-    monkeypatch.setattr("urllib.request.urlopen", forbidden)
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:1")
+    monkeypatch.setenv("ALL_PROXY", "http://127.0.0.1:1")
     store.install("test", archive)
     store.verify("test")
 
@@ -116,3 +115,49 @@ def test_verify_detects_extra_files(package):
     (path / "payload/extra").write_text("unexpected")
     with pytest.raises(ValueError, match="checksum mismatch"):
         store.verify("test")
+
+
+def test_native_store_preserves_python_bundle_identity(package, tmp_path):
+    import importlib.util
+    source = Path(__file__).parent / 'reference/python_manager.py'
+    spec = importlib.util.spec_from_file_location('legacy_store', source)
+    legacy = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(legacy)
+    native, archive = package
+    old = legacy.Store(tmp_path / 'old-store', native.catalog_path)
+    assert native.install('test', archive)['bundle_id'] == old.install('test', archive)['bundle_id']
+
+
+def test_normalized_duplicate_archive_entries_rejected(tmp_path):
+    archive = tmp_path / 'duplicate.zip'
+    with zipfile.ZipFile(archive, 'w') as z:
+        z.writestr('a/file', 'one')
+        z.writestr('a/./file', 'two')
+    with pytest.raises(ValueError, match='Duplicate'):
+        safe_extract(archive, tmp_path / 'extract')
+
+
+def test_archive_crc_failure_does_not_publish(package):
+    store, archive = package
+    data = archive.read_bytes().replace(b'synthetic data', b'corrupted data'[:14])
+    archive.write_bytes(data)
+    catalog = json.loads(store.catalog_path.read_text())
+    catalog['releases']['test']['archive']['sha256'] = sha256(archive)
+    store.catalog_path.write_text(json.dumps(catalog))
+    with pytest.raises(ValueError, match='ZIP'):
+        store.install('test', archive)
+    assert store.installed() == []
+    assert not list(store.root.glob('.install-*'))
+
+
+def test_archive_cannot_extract_through_existing_symlink(tmp_path):
+    archive = tmp_path / 'safe.zip'
+    with zipfile.ZipFile(archive, 'w') as z:
+        z.writestr('file', 'data')
+    outside = tmp_path / 'outside'
+    outside.mkdir()
+    destination = tmp_path / 'extract'
+    destination.symlink_to(outside, target_is_directory=True)
+    with pytest.raises(ValueError, match='private directory'):
+        safe_extract(archive, destination)
+    assert list(outside.iterdir()) == []

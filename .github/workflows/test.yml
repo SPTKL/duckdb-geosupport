@@ -1,21 +1,42 @@
-name: Build and test
-on: [push, pull_request]
+name: Native Linux validation
+on:
+  workflow_call:
+  workflow_dispatch:
+permissions:
+  contents: read
 jobs:
-  test:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: python -m pip install -r requirements-dev.txt
-      - run: python scripts/build.py
-      - run: python -m pytest -q tests -m 'not integration'
-      - run: python scripts/package.py
+      - name: Install native toolchain
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends g++ make libcurl4-openssl-dev libssl-dev curl unzip jq strace
+      - name: Build, test real releases, and benchmark without Python or Docker
+        shell: bash
+        run: |
+          mkdir -p build/reports
+          set -o pipefail
+          strace --seccomp-bpf -f -e trace=execve -s 4096 -o build/reports/native-exec.log \
+            bash scripts/ci-native.sh 2>&1 | tee build/reports/native.log
+      - name: Audit executed programs
+        if: always()
+        run: bash scripts/audit-native-execs.sh build/reports/native-exec.log
+      - name: Benchmark summary
+        run: |
+          {
+            echo '### Native Linux benchmark'
+            echo '| Workload | Rows/second |'
+            echo '| --- | ---: |'
+            jq -r '"| Cold unique requests (median of 3) | \(.cold_median_rows_per_second | floor) |", "| Warm worker cache (median of 3) | \(.warm_median_rows_per_second | floor) |"' build/reports/benchmark.json
+            echo
+            jq -r '.limitations' build/reports/benchmark.json
+          } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: geosupport-${{ matrix.os }}
-          path: build/geosupport-0.1.0-local.tar.gz
+          name: native-linux-results
+          path: |
+            build/reports/
+            build/native/*.tar.gz
+          if-no-files-found: error

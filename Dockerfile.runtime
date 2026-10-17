@@ -1,0 +1,18 @@
+FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS build
+RUN apt-get update && apt-get install -y --no-install-recommends g++ make \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /source
+COPY src src
+COPY vendor vendor
+COPY resources resources
+COPY catalog catalog
+COPY Makefile ./
+COPY scripts/native-build-tool.cpp scripts/native-build-tool.cpp
+RUN make -j2 worker
+
+FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587
+COPY --from=build /source/build/native/geosupport-worker /usr/local/bin/geosupport-worker
+COPY LICENSE THIRD_PARTY_NOTICES.md /usr/share/doc/duckdb-geosupport/
+COPY vendor/nlohmann/LICENSE /usr/share/doc/duckdb-geosupport/nlohmann-LICENSE
+COPY resources/PYTHON_GEOSUPPORT_LICENSE /usr/share/doc/duckdb-geosupport/layouts-LICENSE
+ENTRYPOINT ["/usr/local/bin/geosupport-worker"]

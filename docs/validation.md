@@ -1,4 +1,7 @@
-# Validation record — 2026-10-17
+# Historical 0.1 validation record — 2026-10-17
+
+This records the original Python-worker prototype. The current C++ implementation
+and its separate validation are documented in [native-runtime.md](native-runtime.md).
 
 ## Builds and tests
 

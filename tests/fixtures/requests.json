@@ -1,12 +1,196 @@
 [
-  {"function":"1B","params":{"house_number":"125","street_name":"Worth St","borough_code":"Mn"},"mode":"regular"},
-  {"function":"1B","params":{"house_number":"350","street_name":"5 Ave","borough_code":"Mn"},"mode":"regular"},
-  {"function":"1B","params":{"house_number":"30-30","street_name":"Thomson Ave","borough_code":"QN"},"mode":"regular"},
-  {"function":"1B","params":{"house_number":"999999","street_name":"NOT A REAL STREET","borough_code":"Mn"},"mode":"regular"},
-  {"function":"1A","params":{"house_number":"125","street_name":"Worth St","borough_code":"Mn"},"mode":"extended"},
-  {"function":"1E","params":{"house_number":"125","street_name":"Worth St","borough_code":"Mn"},"mode":"extended"},
-  {"function":"BL","params":{"bbl":"1001680032"},"mode":"regular"},
-  {"function":"BL","params":{"bbl":"1001680032"},"mode":"extended+tpad"},
-  {"function":"AP","params":{"house_number":"125","street_name":"Worth St","borough_code":"Mn"},"mode":"extended"},
-  {"function":"2","params":{"street_name_1":"Broadway","street_name_2":"Worth St","borough_code":"Mn"},"mode":"regular"}
+  {
+    "function": "1B",
+    "params": {
+      "house_number": "125",
+      "street_name": "Worth St",
+      "borough_code": "Mn"
+    },
+    "mode": "regular"
+  },
+  {
+    "function": "1B",
+    "params": {
+      "house_number": "350",
+      "street_name": "5 Ave",
+      "borough_code": "Mn"
+    },
+    "mode": "regular"
+  },
+  {
+    "function": "1B",
+    "params": {
+      "house_number": "30-30",
+      "street_name": "Thomson Ave",
+      "borough_code": "QN"
+    },
+    "mode": "regular"
+  },
+  {
+    "function": "1B",
+    "params": {
+      "house_number": "999999",
+      "street_name": "NOT A REAL STREET",
+      "borough_code": "Mn"
+    },
+    "mode": "regular"
+  },
+  {
+    "function": "1A",
+    "params": {
+      "house_number": "125",
+      "street_name": "Worth St",
+      "borough_code": "Mn"
+    },
+    "mode": "extended"
+  },
+  {
+    "function": "1E",
+    "params": {
+      "house_number": "125",
+      "street_name": "Worth St",
+      "borough_code": "Mn"
+    },
+    "mode": "extended"
+  },
+  {
+    "function": "BL",
+    "params": {
+      "bbl": "1001680032"
+    },
+    "mode": "regular"
+  },
+  {
+    "function": "BL",
+    "params": {
+      "bbl": "1001680032"
+    },
+    "mode": "extended+tpad"
+  },
+  {
+    "function": "AP",
+    "params": {
+      "house_number": "125",
+      "street_name": "Worth St",
+      "borough_code": "Mn"
+    },
+    "mode": "extended"
+  },
+  {
+    "function": "2",
+    "params": {
+      "street_name_1": "Broadway",
+      "street_name_2": "Worth St",
+      "borough_code": "Mn"
+    },
+    "mode": "regular"
+  },
+  {
+    "function": "address",
+    "params": {
+      "house_number": 125,
+      "street_name": "Worth St",
+      "borough_code": 1
+    },
+    "mode": "regular"
+  },
+  {
+    "function": "1N",
+    "params": {
+      "street_name": "Broadway",
+      "borough_code": "Mn"
+    },
+    "mode": "regular"
+  },
+  {
+    "function": "1E",
+    "params": {
+      "house_number": "125",
+      "street_name": "Worth St",
+      "borough_code": "Mn",
+      "street_name_normalization": true
+    },
+    "mode": "regular"
+  },
+  {
+    "function": "BL",
+    "params": {
+      "bbl": "1001680032"
+    },
+    "mode": "long"
+  },
+  {
+    "function": "BL",
+    "params": {
+      "bbl": "1001680032"
+    },
+    "mode": "long+tpad"
+  },
+  {
+    "function": "BN",
+    "params": {
+      "bin": "1001831"
+    },
+    "mode": "tpad"
+  },
+  {
+    "function": "2W",
+    "params": {
+      "street_name_1": "Broadway",
+      "street_name_2": "Worth St",
+      "borough_code": "Mn"
+    },
+    "mode": "regular"
+  },
+  {
+    "function": "3",
+    "params": {
+      "on": "Broadway",
+      "from": "Worth St",
+      "to": "Thomas St",
+      "borough_code": "Mn"
+    },
+    "mode": "extended"
+  },
+  {
+    "function": "3C",
+    "params": {
+      "on": "Broadway",
+      "from": "Worth St",
+      "to": "Thomas St",
+      "borough_code": "Mn",
+      "compass_direction": "E"
+    },
+    "mode": "extended"
+  },
+  {
+    "function": "3S",
+    "params": {
+      "on": "Broadway",
+      "from": "Worth St",
+      "to": "Canal St",
+      "borough_code": "Mn"
+    },
+    "mode": "regular"
+  },
+  {
+    "function": "3",
+    "params": {
+      "on": "Broadway",
+      "from": "Worth St",
+      "to": "Thomas St",
+      "borough_code": "Mn",
+      "auxseg": true
+    },
+    "mode": "regular"
+  },
+  {
+    "function": "1B",
+    "params": {
+      "house_number": null,
+      "street_name": "CITY HALL",
+      "borough_code": "Mn"
+    },
+    "mode": "regular"
+  }
 ]

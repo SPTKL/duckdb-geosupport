@@ -39,7 +39,7 @@ report = {"duckdb": duckdb.__version__, "host": platform.platform(), "runtime": 
           "cached_median_rows_per_second": 2000 / statistics.median(times[1:]),
           "repeated_materialization_rows": 10000, "repeated_materialization_seconds": repeated,
           "output_bytes": checksum,
-          "limitations": "Sequential single-coordinator runs; 2000 house numbers on Broadway including rejects, not citywide capacity. Docker on Apple Silicon uses amd64 emulation."}
+          "limitations": "Serialized native worker calls; 2000 house numbers on Broadway including rejects, not citywide capacity. Docker on Apple Silicon uses amd64 emulation."}
 Path(args.output).write_text(json.dumps(report, indent=2) + "\n")
 print(json.dumps(report, indent=2))
 con.close()

@@ -1,0 +1,17 @@
+{
+  "wrapper_commit": "82c39e82b4d4dc7773fa67d32ef7f3787ef4d27e",
+  "requests_sha256": "981e9b5dc0237a8f3597d05286b5319cab77824ce2cd4e20eefe297b5e70f60c",
+  "method": "Direct unmodified pinned Python wrapper calling official NYC engine, independent of C++ adapter",
+  "releases": {
+    "26b": {
+      "bundle_id": "9adaa8b0ea930c50922cd0665c89a3895d6e99337227e0c64fbea99c6076c966",
+      "output_sha256": "0dda36bd3851467c21e9ef10d601fcf9b998a72759225173a5694763f12b642b",
+      "request_count": 22
+    },
+    "26c": {
+      "bundle_id": "bce0275d8f061d45d4cf916647474cda66700544b0fc57c930c30225b5979ecd",
+      "output_sha256": "0dda36bd3851467c21e9ef10d601fcf9b998a72759225173a5694763f12b642b",
+      "request_count": 22
+    }
+  }
+}

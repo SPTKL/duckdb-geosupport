@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import sys
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "runtime/vendor"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests/reference/vendor"))
 from geosupport import Geosupport, GeosupportError
 
 protocol = os.fdopen(os.dup(1), "w")

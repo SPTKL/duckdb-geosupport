@@ -55,6 +55,20 @@ def test_bad_generic_json(con):
         con.sql("SELECT gs_call('BL','bad json',release := '26c')").fetchall()
 
 
+def test_binary_only_load_without_python_or_runtime_directory(tmp_path, monkeypatch):
+    import shutil
+    binary = tmp_path / 'geosupport.duckdb_extension'
+    shutil.copyfile(EXTENSION, binary)
+    monkeypatch.setenv('PATH', '')
+    monkeypatch.setenv('GEOSUPPORT_PYTHON', '/does/not/exist')
+    monkeypatch.setenv('GEOSUPPORT_HOME', str(tmp_path / 'store'))
+    with duckdb.connect(config={'allow_unsigned_extensions': True}) as connection:
+        connection.execute("LOAD '" + str(binary).replace("'", "''") + "'")
+        assert connection.sql('SELECT count(*) FROM gs_available_releases()').fetchone()[0] == 2
+        assert connection.sql('SELECT count(*) FROM gs_installed_releases()').fetchone()[0] == 0
+    assert not (tmp_path / 'store').exists()
+
+
 @pytest.fixture(scope="module")
 def real():
     home = os.environ.get("GEOSUPPORT_TEST_HOME")
@@ -137,7 +151,7 @@ def test_generic_functions_and_input_validation(real):
 def test_direct_wrapper_parity(real):
     import subprocess
     import sys
-    from runtime.manager import DOCKER_IMAGE, Store
+    from native_store import ORACLE_DOCKER_IMAGE, Store
     requests = json.loads((ROOT / "tests/fixtures/requests.json").read_text())
     store = Store(os.environ["GEOSUPPORT_TEST_HOME"], ROOT / "catalog/releases.json")
     for release in ("26b", "26c"):
@@ -148,15 +162,39 @@ def test_direct_wrapper_parity(real):
                        "--mount", f"type=bind,src={ROOT},dst=/project,readonly",
                        "--mount", f"type=bind,src={bundle},dst=/bundle,readonly",
                        "-e", "GEOFILES=/bundle/payload/fls/", "-e", "LD_LIBRARY_PATH=/bundle/payload/lib",
-                       "-e", "PYTHONDONTWRITEBYTECODE=1", DOCKER_IMAGE, "python", "/project/scripts/direct_reference.py"]
+                       "-e", "PYTHONDONTWRITEBYTECODE=1", ORACLE_DOCKER_IMAGE, "python", "/project/scripts/direct_reference.py"]
         else:
             env["GEOFILES"] = str(bundle / "payload/fls") + "/"
             env["LD_LIBRARY_PATH"] = str(bundle / "payload/lib")
             command = [sys.executable, str(ROOT / "scripts/direct_reference.py")]
-        expected = json.loads(subprocess.run(command, input=json.dumps(requests), text=True, capture_output=True, env=env, check=True, timeout=60).stdout)
+        reference = subprocess.run(command, input=json.dumps(requests), text=True, capture_output=True, env=env, timeout=60)
+        assert reference.returncode == 0, reference.stderr
+        expected = json.loads(reference.stdout)
         actual = []
         for request in requests:
             result = real.execute("SELECT gs_call(?, ?, release := ?, mode := ?)",
                                   [request["function"], json.dumps(request["params"]), release, request["mode"]]).fetchone()[0]
             actual.append(json.loads(result["raw"]))
         assert actual == expected
+
+
+@pytest.mark.integration
+def test_local_engine_without_executable_search_path(tmp_path):
+    import platform
+    import shutil
+    import subprocess
+    import sys
+    if platform.system() != 'Linux' or os.environ.get('GEOSUPPORT_RUNTIME') == 'docker':
+        pytest.skip('Tests direct Linux worker execution with no Python on PATH')
+    home = os.environ.get('GEOSUPPORT_TEST_HOME')
+    if not home:
+        pytest.skip('Requires installed real bundles')
+    binary = tmp_path / 'geosupport.duckdb_extension'
+    shutil.copyfile(EXTENSION, binary)
+    env = dict(os.environ, PATH='', GEOSUPPORT_PYTHON='/does/not/exist', GEOSUPPORT_HOME=home)
+    source = '''import duckdb,sys
+with duckdb.connect(config={'allow_unsigned_extensions': True}) as con:
+    con.execute("LOAD '" + sys.argv[1].replace("'", "''") + "'")
+    assert con.sql("SELECT (gs_address('125','Worth St','Mn',release := '26c')).bbl").fetchone()[0] == '1001680032'
+'''
+    subprocess.run([sys.executable, '-c', source, str(binary)], env=env, check=True, timeout=120)
