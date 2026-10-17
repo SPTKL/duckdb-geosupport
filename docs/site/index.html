@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>duckdb-geosupport — Setup and SQL reference</title>
+<meta name="description" content="Download and set up duckdb-geosupport, run NYC Geosupport in DuckDB, and look up SQL functions, sample output, and errors.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><a href="#top">duckdb-geosupport</a><a href="https://github.com/SPTKL/duckdb-geosupport">GitHub ↗</a></header>
+<main id="top">
+<h1>duckdb-geosupport</h1>
+<p class="intro">NYC address, tax lot, and building lookups in DuckDB.</p>
+<p>Version 0.2.0 · Tested with DuckDB 1.4.4 · Unsigned development extension</p>
+<nav aria-label="Contents"><a href="#setup">Setup</a><a href="#usage">Run a query</a><a href="#examples">Examples</a><a href="#functions">Functions</a><a href="#errors">Errors</a></nav>
+<section id="setup"><h2>1. Download and set up</h2>
+<p>The direct runtime requires <strong>Linux x86-64</strong>. The available binary was built on Ubuntu 24.04; compatibility with older glibc systems is not established. macOS requires a locally built extension and a Linux Docker worker.</p>
+<h3>Download the Linux binary</h3>
+<p>Download <a href="https://github.com/SPTKL/duckdb-geosupport/actions/runs/39054761799/artifacts/12109047693"><code>native-linux-results</code> from the successful build</a> while signed in to GitHub. Unzip it, then extract <code>native/geosupport-0.2.0-Linux-x86_64.tar.gz</code>. It contains <code>geosupport.duckdb_extension</code> and documentation.</p>
+<p>Or use the GitHub CLI from a clone of this repository:</p>
+<pre><code>git clone https://github.com/SPTKL/duckdb-geosupport.git
+cd duckdb-geosupport
+
+# Ubuntu 24.04: tools and runtime libraries for the CI binary.
+sudo apt-get install -y make curl unzip libcurl4t64 libssl3t64
+
+gh run download 39054761799 --repo SPTKL/duckdb-geosupport \
+  --name native-linux-results --dir build/download
+mkdir -p build/native
+tar -xzf build/download/native/geosupport-0.2.0-Linux-x86_64.tar.gz \
+  -C build/native geosupport.duckdb_extension
+
+# Download the repository's pinned DuckDB 1.4.4 CLI.
+make fetch
+export GEOSUPPORT_HOME="$PWD/.cache/geosupport"</code></pre>
+<p class="note">There are no versioned GitHub Releases yet. CI artifacts expire; if this artifact is unavailable, use a newer successful <a href="https://github.com/SPTKL/duckdb-geosupport/actions/workflows/images.yml">CI build</a> or build below. <code>INSTALL geosupport FROM community</code> is not available.</p>
+<details><summary>Build from source instead</summary>
+<p>Clone the repository as above. Install dependencies, then build:</p>
+<pre><code># Debian / Ubuntu
+sudo apt-get update
+sudo apt-get install -y build-essential libcurl4-openssl-dev \
+  libssl-dev curl unzip
+
+make fetch
+make -j2 test
+export GEOSUPPORT_HOME="$PWD/.cache/geosupport"</code></pre>
+<p>The binary is <code>build/native/geosupport.duckdb_extension</code>. On macOS, use Xcode Command Line Tools and the system curl libraries, then run the same Make commands.</p></details>
+<details><summary>macOS: configure the Linux worker</summary><p>Build the extension from source, start Docker, and run:</p>
+<pre><code>docker build --platform linux/amd64 -f Dockerfile.runtime \
+  -t duckdb-geosupport-runtime:0.2.0 .
+export GEOSUPPORT_RUNTIME=docker</code></pre>
+<p>Set this before starting DuckDB. On Linux x86-64, leave <code>GEOSUPPORT_RUNTIME</code> unset or set it to <code>local</code>.</p></details>
+<h3>Open DuckDB</h3>
+<pre><code>build/deps/duckdb -unsigned -bail -init /dev/null \
+  -cmd "LOAD '$PWD/build/native/geosupport.duckdb_extension';"</code></pre>
+<p>Use an absolute path to the binary. The SQL extension name and binary filename remain <code>geosupport</code> and <code>geosupport.duckdb_extension</code>.</p>
+</section>
+<section id="usage"><h2>2. Install a release and run a query</h2>
+<p>Run the following in DuckDB. The first command explicitly downloads the NYC engine and data, approximately 195 MiB compressed and 1.9 GiB installed.</p>
+<pre><code>CALL gs_install('26c');
+
+SET VARIABLE geosupport_release =
+  (SELECT bundle_id FROM gs_load('26c'));
+
+CREATE TEMP TABLE result AS
+SELECT gs_address('125', 'Worth St', 'Mn') AS geo;
+
+SELECT geo.bbl, geo.bin, geo.latitude, geo.longitude,
+       geo.grc, geo.grc2
+FROM result;</code></pre>
+<p class="caption">Sample output, captured from the 26C engine:</p>
+<!-- FIRST_OUTPUT -->
+<p><code>gs_load</code> starts the worker. The variable selects the default for this connection. Alternatively, pass <code>release := '26c'</code> directly to a lookup. Data is stored in <code>GEOSUPPORT_HOME</code>, separately from your DuckDB database.</p>
+</section>
+<section id="examples"><h2>3. Examples</h2>
+<h3>Geocode a table</h3>
+<pre><code>CREATE TEMP TABLE addresses AS
+SELECT * FROM (VALUES
+  (1, '125',    'Worth St',          'Mn'),
+  (2, '350',    '5 Ave',             'Mn'),
+  (3, '30-30',  'Thomson Ave',       'QN'),
+  (4, '999999', 'NOT A REAL STREET', 'Mn')
+) AS t(id, house_number, street_name, borough);
+
+CREATE TEMP TABLE geocoded AS
+SELECT id, gs_address(house_number, street_name, borough,
+                      release := '26c') AS geo
+FROM addresses;
+
+SELECT id, geo.bbl, geo.bin, geo.latitude, geo.longitude,
+       geo.grc, geo.grc2
+FROM geocoded ORDER BY id;</code></pre>
+<!-- BATCH_OUTPUT -->
+<p>Keep house numbers and identifiers as strings. Rejected addresses remain rows with return codes and messages. Inspect both <code>grc</code> and <code>grc2</code> for an address lookup.</p>
+<pre><code>SELECT id, geo.grc, geo.grc2, geo.message, geo.message2
+FROM geocoded
+WHERE geo.grc IS DISTINCT FROM '00'
+   OR geo.grc2 IS DISTINCT FROM '00';</code></pre>
+<!-- REJECT_OUTPUT -->
+<p>This filter flags anything other than two exact <code>00</code> codes for review; your acceptance policy may allow other codes.</p>
+<h3>Look up a tax lot or building</h3>
+<pre><code>SELECT (gs_bbl('1001680032', release := '26c')).bbl AS bbl;
+-- 1001680032
+
+SELECT (gs_bin('1001831', release := '26c', mode := 'tpad')).bbl AS bbl;
+-- 1001680032</code></pre>
+<h3>Call a Geosupport function directly</h3>
+<pre><code>SELECT gs_call('1E', to_json({
+  'house_number': '125',
+  'street_name': 'Worth St',
+  'borough_code': 'Mn'
+}), release := '26c', mode := 'extended') AS geo;</code></pre>
+<p>Every result includes <code>raw</code>, the full parsed output as JSON text. Use <code>geo.raw::JSON</code> to inspect function-specific fields.</p>
+<h3>Use another quarter</h3>
+<pre><code>CALL gs_install('26b');
+SELECT (gs_address('125', 'Worth St', 'Mn', release := '26b')).bbl AS bbl;
+-- 1001680032</code></pre>
+<p>Save <code>release</code>, <code>engine_version</code>, and <code>bundle_id</code> with your results. An explicit release overrides the connection variable. Prepared statements capture that variable when prepared.</p>
+<p class="caption">Examples use real captured engine output. <a href="data/samples.json">Download the full sample results</a> · <a href="data/provenance.json">Capture provenance</a></p>
+</section>
+<section id="functions"><h2>4. Function reference</h2>
+<h3>Lookups</h3>
+<div class="table-wrap"><table><thead><tr><th>Signature</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><code>gs_address(house_number, street_name, borough, release := NULL)</code></td><td>Address lookup using function 1B, regular mode.</td></tr>
+<tr><td><code>gs_bbl(bbl, release := NULL, mode := 'regular')</code></td><td>Tax lot lookup using BL.</td></tr>
+<tr><td><code>gs_bin(bin, release := NULL, mode := 'regular')</code></td><td>Building lookup using BN.</td></tr>
+<tr><td><code>gs_call(function_code, inputs, release := NULL, mode := 'regular')</code></td><td>Generic call with a JSON object of input fields.</td></tr>
+</tbody></table></div>
+<p>Accepted modes: <code>regular</code>, <code>extended</code>, <code>long</code>, <code>tpad</code>, <code>long+tpad</code>, <code>extended+tpad</code>. Output depends on the function and mode. <code>gs_address</code> does not implement a separate 1A/1E fallback.</p>
+<p>Inputs must fit their fixed field widths and contain ASCII without NUL. Generic field values may be strings, integers, booleans, or NULL. Individual NULL fields become blanks. A NULL generic function, entire input value, or mode returns NULL when a release is selected.</p>
+<details><summary>All supported Geosupport function codes and aliases</summary>
+<!-- FUNCTION_CODES -->
+<p>See the <a href="https://github.com/SPTKL/duckdb-geosupport/blob/main/resources/layouts.json">layout definitions</a> for input field names, widths, and function-specific layouts. <code>_gs_call</code> is an internal implementation function; use the public helpers above.</p></details>
+<h3>Returned fields</h3>
+<div class="table-wrap"><table><thead><tr><th>Field</th><th>Type</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>bbl</code>, <code>bin</code></td><td>VARCHAR</td><td>Tax lot and building identifiers.</td></tr>
+<tr><td><code>latitude</code>, <code>longitude</code></td><td>DOUBLE</td><td>Coordinates, when available.</td></tr>
+<tr><td><code>grc</code>, <code>grc2</code></td><td>VARCHAR</td><td>Primary and secondary return codes.</td></tr>
+<tr><td><code>message</code>, <code>message2</code></td><td>VARCHAR</td><td>Corresponding engine messages.</td></tr>
+<tr><td><code>release</code></td><td>VARCHAR</td><td>Quarterly release label, e.g. 26c.</td></tr>
+<tr><td><code>engine_version</code></td><td>VARCHAR</td><td>Engine version, e.g. 26.3.</td></tr>
+<tr><td><code>bundle_id</code></td><td>VARCHAR</td><td>Immutable engine/data identity.</td></tr>
+<tr><td><code>raw</code></td><td>VARCHAR</td><td>Full parsed JSON output.</td></tr>
+</tbody></table></div>
+<p>Unavailable result fields are NULL. Not every function returns coordinates or both return codes.</p>
+<h3>Release management</h3>
+<div class="table-wrap"><table><thead><tr><th>SQL</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><code>SELECT * FROM gs_available_releases();</code></td><td>List catalog releases (26B and 26C).</td></tr>
+<tr><td><code>SELECT * FROM gs_installed_releases();</code></td><td>List installed bundles.</td></tr>
+<tr><td><code>SELECT * FROM gs_runtime_info();</code></td><td>List active workers.</td></tr>
+<tr><td><code>CALL gs_install('26c');</code></td><td>Download, verify, and install a release. Repeated calls verify and reuse it.</td></tr>
+<tr><td><code>CALL gs_import('26c', '/path/linux_geo26c_26.3.zip');</code></td><td>Import a matching base archive offline.</td></tr>
+<tr><td><code>CALL gs_verify('26c');</code></td><td>Verify bundle integrity.</td></tr>
+<tr><td><code>CALL gs_load('26c');</code></td><td>Start a worker and return the bundle identity.</td></tr>
+<tr><td><code>CALL gs_unload('26c');</code></td><td>Stop a worker; keep installed data.</td></tr>
+</tbody></table></div>
+<p>These functions return <code>release</code>, <code>bundle_id</code>, <code>engine_version</code>, <code>platform</code>, and <code>details</code> (JSON text). Geocoding never installs missing data automatically.</p>
+<details><summary>Environment variables and runtime limits</summary>
+<div class="table-wrap"><table><thead><tr><th>Variable</th><th>Default / purpose</th></tr></thead><tbody>
+<tr><td><code>GEOSUPPORT_HOME</code></td><td><code>~/.cache/duckdb-geosupport</code>; bundle store.</td></tr>
+<tr><td><code>GEOSUPPORT_CATALOG</code></td><td>Optional local catalog file.</td></tr>
+<tr><td><code>GEOSUPPORT_RUNTIME</code></td><td><code>local</code> or <code>docker</code>.</td></tr>
+<tr><td><code>GEOSUPPORT_DOCKER</code></td><td>Docker executable; default <code>docker</code>.</td></tr>
+<tr><td><code>GEOSUPPORT_DOCKER_IMAGE</code></td><td>Default <code>duckdb-geosupport-runtime:0.2.0</code>.</td></tr>
+</tbody></table></div>
+<p>Store/catalog settings are captured on first use; runtime settings apply at worker startup. Calls are serialized, with up to eight workers and a bounded per-worker cache. Lifecycle changes are outside SQL transactions. Cancellation and external-access policy integration remain unfinished; use trusted analytical sessions.</p></details>
+</section>
+<section id="errors"><h2>5. Errors and return messages</h2>
+<p><strong>Address rejects are data:</strong> inspect <code>grc</code>, <code>grc2</code>, <code>message</code>, and <code>message2</code>. The extension preserves messages from the selected NYC engine, so their text depends on the input and quarterly release.</p>
+<p><strong>API and runtime failures stop the query.</strong> DuckDB may prefix these messages with <code>Invalid Input Error</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Message or prefix</th><th>What to do</th></tr></thead><tbody>
+<tr><td><code>Select a release: …</code></td><td>Set <code>geosupport_release</code> or pass <code>release := '26c'</code>.</td></tr>
+<tr><td><code>Release … is not installed; use gs_install or gs_import explicitly</code></td><td>Install/import it in the same store.</td></tr>
+<tr><td><code>Release … is not in the pinned catalog</code></td><td>Check <code>gs_available_releases()</code>.</td></tr>
+<tr><td><code>Lifecycle arguments cannot be NULL</code></td><td>Supply a release and any required path.</td></tr>
+<tr><td><code>Inputs must be an object; specify function separately</code></td><td>Pass a JSON object; put the function code in the first argument.</td></tr>
+<tr><td><code>Unknown input field: …</code></td><td>Check field names in the layout definitions.</td></tr>
+<tr><td><code>Input … must be a string, integer, boolean or null</code></td><td>Use a supported scalar field value.</td></tr>
+<tr><td><code>Input … exceeds Geosupport field width</code><br><code>Input … must be ASCII without NUL characters</code></td><td>Correct the input length or encoding.</td></tr>
+<tr><td><code>… is not a valid borough</code></td><td>Use a recognized borough code, such as <code>Mn</code> or <code>QN</code>.</td></tr>
+<tr><td><code>Unsupported function: …</code><br><code>Unsupported mode: …</code></td><td>Use a supported code or mode from the reference above.</td></tr>
+<tr><td><code>[json.exception.parse_error.…]</code></td><td>Fix malformed JSON. Prefer <code>to_json({...})</code>.</td></tr>
+<tr><td><code>Downloaded/imported archive checksum mismatch</code></td><td>Use the exact catalog archive; do not bypass verification.</td></tr>
+<tr><td><code>Bundle … payload checksum mismatch</code></td><td>The installed bundle changed or is damaged. Restore it from a verified archive in a clean store.</td></tr>
+<tr><td><code>Local Geosupport requires Linux x86-64; …</code></td><td>Use Linux x86-64 or configure the Docker worker on macOS.</td></tr>
+<tr><td><code>Cannot start native worker: …</code><br><code>Cannot load Geosupport: …</code></td><td>Check runtime dependencies, permissions, and the locally built Docker image.</td></tr>
+<tr><td><code>Geosupport worker exited before responding; inspect stderr</code><br><code>Geosupport worker disconnected; inspect stderr</code></td><td>Read worker stderr for the underlying failure.</td></tr>
+<tr><td><code>Geosupport worker timed out (300 seconds)</code></td><td>Inspect worker health and retry with a smaller request.</td></tr>
+</tbody></table></div>
+<details><summary>Complete adapter diagnostic catalog</summary><p>Generated from the C++ error sites in this repository. An ellipsis marks a dynamic value or system diagnostic. JSON, filesystem, download, and DuckDB libraries may add their own error details.</p>
+<!-- DIAGNOSTICS -->
+</details>
+<p>For unsigned-extension errors, start DuckDB with <code>-unsigned</code>. For platform or version mismatch errors, use the matching binary and the pinned DuckDB 1.4.4 CLI.</p>
+</section>
+<footer><a href="https://github.com/SPTKL/duckdb-geosupport">Source repository</a> · <a href="https://github.com/SPTKL/duckdb-geosupport/issues">Issues</a> · <a href="https://github.com/SPTKL/duckdb-geosupport/blob/main/THIRD_PARTY_NOTICES.md">Third-party notices</a><p>MIT-licensed adapter. NYC engine and data terms apply separately.</p></footer>
+</main></body></html>

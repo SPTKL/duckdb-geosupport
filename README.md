@@ -1,5 +1,9 @@
 # Geosupport for DuckDB
 
+**[Documentation](https://sptkl.github.io/duckdb-geosupport/)** — binary download,
+setup, SQL examples, sample output, and the function/error reference.
+See [site maintenance](docs/site/README.md) to build or publish it.
+
 A native DuckDB extension for NYC Geosupport, with quarterly release management
 and typed SQL results. **Version 0.2.0 removes Python from the runtime.**
 

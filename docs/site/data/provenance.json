@@ -1,0 +1,12 @@
+{
+  "method": "Captured by scripts/export-doc-samples.py using gs_call through the native extension and official NYC engines. No synthetic output.",
+  "source_commit": "2cbd1299babd9a7de4d48731bb33f13c928e2d7c",
+  "duckdb_version": "v1.4.4 (Andium) 6ddac802ff",
+  "extension_sha256": "ab56158c226c019cfdb6fdbbba5df33417586f3c32ca86bcd5cc32e3be9a1c3a",
+  "samples_sha256": "37edede4b388ad9246d2d817e2285255f41f67e5130b99b4ac702d8b77203564",
+  "row_count": 14,
+  "bundles": {
+    "26b": "9adaa8b0ea930c50922cd0665c89a3895d6e99337227e0c64fbea99c6076c966",
+    "26c": "bce0275d8f061d45d4cf916647474cda66700544b0fc57c930c30225b5979ecd"
+  }
+}
