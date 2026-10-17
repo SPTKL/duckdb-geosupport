@@ -1,0 +1,20 @@
+{
+  "duckdb": "1.4.4",
+  "host": "macOS-26.5.2-arm64-arm-64bit",
+  "runtime": "docker",
+  "bundle_id": "bce0275d8f061d45d4cf916647474cda66700544b0fc57c930c30225b5979ecd",
+  "load_verify_startup_seconds": 1.784659417,
+  "rows": 2000,
+  "uncached_seconds": 1.634871,
+  "cached_seconds": [
+    0.8995139160000001,
+    0.8497814999999997,
+    0.9789449999999995
+  ],
+  "uncached_rows_per_second": 1223.3381104686548,
+  "cached_median_rows_per_second": 2223.4230782039394,
+  "repeated_materialization_rows": 10000,
+  "repeated_materialization_seconds": 0.0652208329999997,
+  "output_bytes": 18192322,
+  "limitations": "Sequential single-coordinator runs; 2000 house numbers on Broadway including rejects, not citywide capacity. Docker on Apple Silicon uses amd64 emulation."
+}

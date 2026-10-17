@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "releases": {
+    "26b": {
+      "release": "26b",
+      "engine_version": "26.2",
+      "platform": "linux_amd64",
+      "archive": {
+        "url": "https://s-media.nyc.gov/agencies/dcp/assets/files/zip/data-tools/bytes/geosupport/linux_geo26b_26.2.zip",
+        "sha256": "9a0db7df4911f14a4c974de3e19ecac2769e432abd2bbbb183a3593a5d4450be"
+      },
+      "patches": []
+    },
+    "26c": {
+      "release": "26c",
+      "engine_version": "26.3",
+      "platform": "linux_amd64",
+      "archive": {
+        "url": "https://s-media.nyc.gov/agencies/dcp/assets/files/zip/data-tools/bytes/geosupport/linux_geo26c_26.3.zip",
+        "sha256": "71a3f2d621348d3d70ed2829b425242744d457fc27941f6bf67d807e123bf740"
+      },
+      "patches": []
+    }
+  }
+}
