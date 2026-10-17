@@ -30,11 +30,24 @@ to `build/site/notebooks/` for direct download. Notebook changes trigger Pages.
 Keep committed outputs empty and use a Python 3 CPU runtime to run the cells in
 order. Optional upload, comparison, and download cells are disabled by default.
 
-The notebook pins DuckDB 1.4.4 and an extension source commit, builds on the Linux
-runtime, and downloads the official 26C bundle through `gs_install`. When changing
-the source pin or DuckDB version, rerun the notebook from setup through export in
-a fresh Linux x86-64 environment. Also exercise the optional quarter comparison;
-the CSV upload and download controls require Colab's UI.
+The notebook pins DuckDB 1.4.4 and a versioned release archive with its SHA-256.
+It downloads the prebuilt extension, installs runtime libraries only if missing,
+and downloads the official 26C bundle through `gs_install`. No build tools are
+installed. When changing the release or DuckDB version, rerun the notebook from
+setup through export in fresh Ubuntu 22.04 and 24.04 x86-64 environments. The CSV
+upload and download controls require Colab's UI.
+
+`Dockerfile.release` builds and tests the binary on Ubuntu 22.04, with output
+limited to the distributable archive. To build from a clean checkout:
+
+```sh
+docker build --platform linux/amd64 -f Dockerfile.release \
+  --output type=local,dest=build/release .
+```
+
+Publish the tested archive as a GitHub release asset with checksums and build
+provenance. Update the notebook's archive URL, SHA-256, and source commit together;
+do not replace an existing release asset with different bytes.
 
 ## Deployment
 
@@ -42,9 +55,8 @@ the CSV upload and download controls require Colab's UI.
 and manual dispatch. Only `main` deploys. Set repository **Settings → Pages →
 Source → GitHub Actions** once. Asset paths are relative for the project URL.
 
-The binary download points to a verified successful CI artifact. There is no
-versioned release yet. Actions artifacts expire; update the link when a new
-binary is published. Setup covers the Linux binary and the published `26c`
+The binary download points to a versioned GitHub release with a checksum file.
+Setup covers the Ubuntu 22.04/24.04 Linux binary and the published `26c`
 container for Macs with Apple Silicon. Source-build instructions live in the
 repository README.
 

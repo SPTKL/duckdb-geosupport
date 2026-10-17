@@ -5,10 +5,11 @@ setup, SQL examples, sample output, and the function/error reference.
 See [site maintenance](docs/site/README.md) to build or publish it.
 
 **[Open the walkthrough in Google Colab](https://colab.research.google.com/github/SPTKL/duckdb-geosupport/blob/main/notebooks/geosupport_quickstart.ipynb)**
-— build and load the extension, install 26C, geocode a table, inspect Geosupport
+— download and load the prebuilt extension, install 26C, geocode a table, inspect Geosupport
 return codes, and export CSV/Parquet results with provenance. Use a Python 3 CPU
 runtime; initial setup takes several minutes and several GiB of disk. Optional
-cells accept your own CSV and compare quarters. No Docker or GitHub token is needed.
+cells accept your own CSV and compare quarters. No compiler, Make, Git, Docker,
+or GitHub token is needed.
 [View or download the notebook](notebooks/geosupport_quickstart.ipynb).
 
 A native DuckDB extension for NYC Geosupport, with quarterly release management
@@ -30,7 +31,21 @@ image because NYC's Linux library cannot execute on macOS. Windows/Wasm are not
 implemented. This is an **unsigned development release**, not yet available through
 `INSTALL geosupport FROM community`. See the [publication plan](docs/community-publication.md).
 
-## Build
+## Run without building
+
+The [Colab notebook](https://colab.research.google.com/github/SPTKL/duckdb-geosupport/blob/main/notebooks/geosupport_quickstart.ipynb)
+downloads the checksum-pinned [v0.2.0 Linux binary](https://github.com/SPTKL/duckdb-geosupport/releases/tag/v0.2.0).
+It installs DuckDB and checks for libcurl, OpenSSL, and the C++ runtime, installing
+those runtime libraries only if missing. The binary is tested on Ubuntu 22.04 and
+24.04 with DuckDB 1.4.4. The Geosupport engine/data is installed separately.
+
+For a local environment with everything included, use the published container:
+
+```sh
+docker run --rm -it --platform linux/amd64 ghcr.io/sptkl/duckdb-geosupport:26c
+```
+
+## Build from source (developers)
 
 The native build uses C++17, Make, curl, unzip, and DuckDB 1.4.4. On Debian/Ubuntu,
 install `build-essential libcurl4-openssl-dev libssl-dev curl unzip`. macOS uses the

@@ -31,6 +31,7 @@ source URLs and checksums. The extension binary and source packages do not inclu
 those archives. The optional provisioned container images include a separately
 downloaded quarterly installation, whose NYC terms still apply.
 
-The native worker and provisioned images use Debian bookworm slim pinned by digest
-in their Dockerfiles. `Dockerfile.dev` and the test oracle use a pinned official
+The provisioned images use Debian bookworm slim pinned by digest in their
+Dockerfiles. The standalone Linux release uses Ubuntu 22.04 pinned by digest in
+`Dockerfile.release`. `Dockerfile.dev` and the test oracle use a pinned official
 Python image for optional development validation only.

@@ -14,18 +14,18 @@
 <p>Version 0.2.0 · Tested with DuckDB 1.4.4 · Unsigned development extension</p>
 <nav aria-label="Contents"><a href="#colab">Colab walkthrough</a><a href="#setup">Setup</a><a href="#usage">Run a query</a><a href="#examples">Examples</a><a href="#functions">Functions</a><a href="#errors">Errors</a></nav>
 <section id="colab"><h2>Try it in Google Colab</h2>
-<p><a href="https://colab.research.google.com/github/SPTKL/duckdb-geosupport/blob/main/notebooks/geosupport_quickstart.ipynb">Open the step-by-step Colab notebook ↗</a> to build and load the extension, install 26C, geocode a table, review Geosupport return codes and messages, and export CSV/Parquet results with provenance.</p>
-<p>Choose a Python 3 CPU runtime and run the cells in order. Initial setup takes several minutes and several GiB of disk, including the approximately 195 MiB download and 1.9 GiB installed 26C bundle. The notebook builds a pinned source revision; no Docker or GitHub token is needed. Optional cells let you upload your own CSV and compare quarters.</p>
+<p><a href="https://colab.research.google.com/github/SPTKL/duckdb-geosupport/blob/main/notebooks/geosupport_quickstart.ipynb">Open the step-by-step Colab notebook ↗</a> to download and load the prebuilt extension, install 26C, geocode a table, review Geosupport return codes and messages, and export CSV/Parquet results with provenance.</p>
+<p>Choose a Python 3 CPU runtime and run the cells in order. Initial setup takes several minutes and several GiB of disk, including the approximately 195 MiB download and 1.9 GiB installed 26C bundle. The notebook downloads a checksum-verified release binary and installs runtime libraries only if missing; no compiler, Make, Git, Docker, or GitHub token is needed. Optional cells let you upload your own CSV and compare quarters.</p>
 <p>Download your results before the temporary Colab runtime ends. <a href="notebooks/geosupport_quickstart.ipynb" download>Download the notebook</a> · <a href="https://github.com/SPTKL/duckdb-geosupport/blob/main/notebooks/geosupport_quickstart.ipynb">View on GitHub</a></p>
 </section>
 <section id="setup"><h2>1. Download and set up</h2>
 <h3>Linux x86-64: download the extension</h3>
-<p>Download <a href="https://github.com/SPTKL/duckdb-geosupport/actions/runs/39054761799/artifacts/12109047693"><code>native-linux-results</code> from the repository</a> while signed in to GitHub. Unzip the download, then extract <code>native/geosupport-0.2.0-Linux-x86_64.tar.gz</code> to get <code>geosupport.duckdb_extension</code>.</p>
+<p>Download the <a href="https://github.com/SPTKL/duckdb-geosupport/releases/download/v0.2.0/geosupport-0.2.0-Linux-x86_64.tar.gz">v0.2.0 Linux x86-64 archive</a> and compare its SHA-256 with <a href="https://github.com/SPTKL/duckdb-geosupport/releases/download/v0.2.0/SHA256SUMS">the release checksums</a>. Extract the archive to get <code>geosupport.duckdb_extension</code>. A GitHub account is not required.</p>
 <p>Use <a href="https://github.com/duckdb/duckdb/releases/download/v1.4.4/duckdb_cli-linux-amd64.zip">DuckDB 1.4.4 for Linux x86-64</a>. Unzip it and open the DuckDB interface from your terminal:</p>
 <pre><code>./duckdb -unsigned</code></pre>
 <p>In DuckDB, load the downloaded extension using its absolute path:</p>
 <pre><code>LOAD '/absolute/path/to/geosupport.duckdb_extension';</code></pre>
-<p class="note">The extension binary was built on Ubuntu 24.04 and requires its curl and OpenSSL runtime libraries (<code>libcurl4t64</code> and <code>libssl3t64</code>). Compatibility with older glibc systems is not established. If the download has expired, get <code>native-linux-results</code> from a newer successful <a href="https://github.com/SPTKL/duckdb-geosupport/actions/workflows/images.yml">repository build</a>.</p>
+<p class="note">This binary was built on Ubuntu 22.04 and tested on Ubuntu 22.04 and 24.04 with DuckDB 1.4.4. It requires libcurl, OpenSSL 3, and the C++ runtime (<code>libcurl.so.4</code>, <code>libcrypto.so.3</code>, and <code>libstdc++.so.6</code>). Compilers and development headers are not needed. See the <a href="https://github.com/SPTKL/duckdb-geosupport/releases/tag/v0.2.0">release notes and build provenance</a>.</p>
 <h3>Mac with Apple Silicon: run the published container</h3>
 <p>Start Docker Desktop, then run the published <code>26c</code> image to open an interactive DuckDB session:</p>
 <pre><code>docker run --rm -it --platform linux/amd64 \
