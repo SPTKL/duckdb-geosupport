@@ -6,3 +6,6 @@ __pycache__/
 *.duckdb
 *.duckdb.wal
 .DS_Store
+configure/
+cmake_build/
+duckdb_unittest_tempdir/

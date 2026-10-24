@@ -1,24 +1,27 @@
 # Fully provisioned DuckDB + Geosupport. Build on an amd64 host; no Python.
+ARG DUCKDB_VERSION=1.5.6
 FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS build
+ARG DUCKDB_VERSION
 RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ make libcurl4-openssl-dev libssl-dev ca-certificates curl unzip \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /source
 COPY Makefile ./
-COPY scripts/native-build-tool.cpp scripts/fetch-duckdb.sh scripts/
+COPY scripts/native-build-tool.cpp scripts/fetch-duckdb.sh scripts/duckdb-checksums.txt scripts/
 COPY src src
 COPY vendor vendor
 COPY resources resources
 COPY catalog catalog
-RUN make fetch && make -j2 build
+RUN make DUCKDB_VERSION="$DUCKDB_VERSION" fetch && make -j2 DUCKDB_VERSION="$DUCKDB_VERSION" build
 
 FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS provision
+ARG DUCKDB_VERSION
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libcurl4 libssl3 libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
 ARG GEOSUPPORT_RELEASE=26c
 ENV GEOSUPPORT_HOME=/opt/geosupport/store GEOSUPPORT_RUNTIME=local
-COPY --from=build /source/build/deps/duckdb /usr/local/bin/duckdb
-COPY --from=build /source/build/native/geosupport.duckdb_extension /opt/geosupport/geosupport.duckdb_extension
+COPY --from=build /source/build/deps/${DUCKDB_VERSION}/duckdb /usr/local/bin/duckdb
+COPY --from=build /source/build/native/${DUCKDB_VERSION}/geosupport.duckdb_extension /opt/geosupport/geosupport.duckdb_extension
 RUN case "$GEOSUPPORT_RELEASE" in 26b|26c) ;; *) exit 1 ;; esac \
     && mkdir -p /opt/duckdb/extensions \
     && duckdb -unsigned -bail -no-stdin -c "\
@@ -29,15 +32,17 @@ RUN case "$GEOSUPPORT_RELEASE" in 26b|26c) ;; *) exit 1 ;; esac \
        "SET VARIABLE geosupport_release='$GEOSUPPORT_RELEASE';" > /opt/geosupport/init.sql
 
 FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587
+ARG DUCKDB_VERSION
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libcurl4 libssl3 libstdc++6 \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --uid 10001 --create-home duckdb && mkdir /data && chown duckdb:duckdb /data
 ARG GEOSUPPORT_RELEASE=26c
 LABEL org.opencontainers.image.title="DuckDB with NYC Geosupport" \
-      org.opencontainers.image.description="DuckDB 1.4.4, native Geosupport extension, and a verified quarterly engine/data bundle" \
+      org.opencontainers.image.description="DuckDB ${DUCKDB_VERSION}, native Geosupport extension, and a verified quarterly engine/data bundle" \
       org.opencontainers.image.source="https://github.com/SPTKL/duckdb-geosupport" \
-      org.opencontainers.image.version="0.2.0" \
-      org.nycplanning.geosupport.release="$GEOSUPPORT_RELEASE"
+      org.opencontainers.image.version="0.3.0" \
+      org.nycplanning.geosupport.release="$GEOSUPPORT_RELEASE" \
+      org.nycplanning.duckdb.version="$DUCKDB_VERSION"
 ENV GEOSUPPORT_HOME=/opt/geosupport/store GEOSUPPORT_RUNTIME=local
 COPY --from=provision /usr/local/bin/duckdb /usr/local/bin/duckdb
 COPY --from=provision --chown=duckdb:duckdb /opt/geosupport /opt/geosupport

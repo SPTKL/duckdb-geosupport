@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
             out.write(reinterpret_cast<const char *>(header), sizeof(header));
             out << "duckdb_signature";
             out.put(static_cast<char>(128)); out.put(4);
-            const char *fields[] = {"", "", "", "C_STRUCT", argv[5], "v1.2.0", argv[4], "4"};
+            const char *fields[] = {"", "", "", "C_STRUCT", argv[5], "v1.5.6", argv[4], "4"};
             for (const auto *field : fields) Field(out, field);
             out << std::string(256, '\0');
         } else throw std::runtime_error("Invalid arguments");

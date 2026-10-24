@@ -252,8 +252,12 @@ struct Manager::Impl {
 };
 Manager::Manager() = default;
 Manager::~Manager() = default;
-json Manager::Request(const json &request) {
+json Manager::Request(const json &request, const std::function<void()> &check_access) {
     std::lock_guard<std::mutex> lock(mutex);
+    // Recheck after waiting for another connection's request, before store access
+    // or reuse of an already running worker. Never cache a permission decision.
+    if (check_access) check_access();
+    if (Canonical(request).size() > MAX_FRAME) throw std::runtime_error("Request exceeds protocol limit");
     if (!impl) impl = std::make_unique<Impl>();
     return impl->Dispatch(request);
 }

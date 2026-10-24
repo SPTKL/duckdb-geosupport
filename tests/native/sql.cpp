@@ -3,6 +3,7 @@
 #include "picosha2/picosha2.h"
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <future>
@@ -78,6 +79,15 @@ void Unit(const std::string &extension) {
     db.Fails("SELECT gs_address('125','Worth St','Mn')", "Select a release");
     db.Fails("CALL gs_load(NULL)", "cannot be NULL");
     db.Fails("SELECT gs_call('BL','bad json',release := '26c')", "parse_error");
+    db.Fails("SELECT gs_call('BL',repeat('x',1048577),release := '26c')", "exceeds 1 MiB");
+    db.Exec("PREPARE catalog AS SELECT * FROM gs_available_releases()");
+    db.Exec("PREPARE geocode AS SELECT " + Address);
+    db.Exec("SET enable_external_access=false");
+    for (const auto &sql : {"EXECUTE catalog", "EXECUTE geocode", "CALL gs_installed_releases()",
+            "CALL gs_runtime_info()", "CALL gs_install('26c')", "CALL gs_import('26c','/does/not/exist')",
+            "CALL gs_verify('26c')", "CALL gs_load('26c')", "CALL gs_unload('26c')"})
+        db.Fails(sql, "enable_external_access");
+    Check(!fs::exists(home), "Disabled external access creates store");
     fs::remove_all(temp);
 }
 void E2E(const std::string &extension) {
@@ -161,6 +171,10 @@ void E2E(const std::string &extension) {
         duckdb_disconnect(&connection);
     }));
     for (auto &job : jobs) { job.get(); ++checks; }
+    db.Exec("PREPARE existing_worker AS SELECT " + Address);
+    db.Exec("SET enable_external_access=false");
+    db.Fails("EXECUTE existing_worker", "enable_external_access");
+    db.Fails("CALL gs_runtime_info()", "enable_external_access");
 }
 double Seconds(Clock::time_point start) { return std::chrono::duration<double>(Clock::now() - start).count(); }
 void Benchmark(const std::string &extension, const std::string &output) {
@@ -203,6 +217,12 @@ void Benchmark(const std::string &extension, const std::string &output) {
 int main(int argc, char **argv) {
     try {
         if (argc < 3) throw std::runtime_error("Usage: sql-tests unit|e2e|benchmark EXTENSION [REPORT]");
+        const std::string library_version = duckdb_library_version();
+        std::cout << "DuckDB shared library: " << library_version << '\n';
+        if (const char *expected = std::getenv("DUCKDB_EXPECTED_VERSION")) {
+            const std::string actual = library_version[0] == 'v' ? library_version.substr(1) : library_version;
+            Check(actual == expected, "DuckDB shared library version mismatch: expected " + std::string(expected) + ", got " + library_version);
+        }
         const std::string mode = argv[1];
         if (mode == "unit") Unit(argv[2]);
         else if (mode == "e2e") E2E(argv[2]);

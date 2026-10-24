@@ -6,7 +6,7 @@ import tarfile
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
 parser.add_argument("--build", default=str(ROOT / "build"))
-parser.add_argument("--output", default=str(ROOT / "build/geosupport-0.2.0-local.tar.gz"))
+parser.add_argument("--output", default=str(ROOT / "build/geosupport-0.3.0-local.tar.gz"))
 args = parser.parse_args()
 build = Path(args.build)
 with tarfile.open(args.output, "w:gz") as archive:

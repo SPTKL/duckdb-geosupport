@@ -1,5 +1,8 @@
 .git
 .venv
 .cache
+configure
+cmake_build
+duckdb_unittest_tempdir
 build
 __pycache__

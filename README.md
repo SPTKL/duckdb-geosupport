@@ -13,7 +13,9 @@ or GitHub token is needed.
 [View or download the notebook](notebooks/geosupport_quickstart.ipynb).
 
 A native DuckDB extension for NYC Geosupport, with quarterly release management
-and typed SQL results. **Version 0.2.0 removes Python from the runtime.**
+and typed SQL results. **The upcoming 0.3.0 release targets DuckDB 1.5.6+** and
+adds community build integration and external-access enforcement. Version 0.2.0
+remains available for older DuckDB hosts. Neither version needs Python at runtime.
 
 ```text
 DuckDB → C++ extension → isolated C++ worker → NYC libgeo.so + quarterly data
@@ -37,7 +39,10 @@ The [Colab notebook](https://colab.research.google.com/github/SPTKL/duckdb-geosu
 downloads the checksum-pinned [v0.2.0 Linux binary](https://github.com/SPTKL/duckdb-geosupport/releases/tag/v0.2.0).
 It installs DuckDB and checks for libcurl, OpenSSL, and the C++ runtime, installing
 those runtime libraries only if missing. The binary is tested on Ubuntu 22.04 and
-24.04 with DuckDB 1.4.4. The Geosupport engine/data is installed separately.
+24.04. That published 0.2 binary was tested with DuckDB 1.4.4, 1.5.0, and 1.5.6;
+the notebook defaults to 1.5.6. New 0.3 source builds require DuckDB 1.5.6+. The Geosupport engine/data is installed
+separately. See [compatibility validation](docs/duckdb-compatibility.md) for the
+checks performed on the published binary and source builds.
 
 For a local environment with everything included, use the published container:
 
@@ -47,17 +52,39 @@ docker run --rm -it --platform linux/amd64 ghcr.io/sptkl/duckdb-geosupport:26c
 
 ## Build from source (developers)
 
-The native build uses C++17, Make, curl, unzip, and DuckDB 1.4.4. On Debian/Ubuntu,
+The native build uses C++17, Make, curl, unzip, and DuckDB (1.5.6 by default). On Debian/Ubuntu,
 install `build-essential libcurl4-openssl-dev libssl-dev curl unzip`. macOS uses the
 Command Line Tools and system libcurl/CommonCrypto.
 
 ```sh
-git clone https://github.com/SPTKL/duckdb-geosupport.git
+git clone --recurse-submodules https://github.com/SPTKL/duckdb-geosupport.git
 cd duckdb-geosupport
-make fetch             # Checksum-pinned DuckDB CLI and C library
+make fetch             # Checksum-pinned DuckDB 1.5.6 CLI and C library
 make -j2 test          # Native build and offline C++ tests; no Python required
 export GEOSUPPORT_HOME="$PWD/.cache/geosupport"
 ```
+
+The pinned native test host is `1.5.6`. Downloads are versioned and verified
+against committed SHA-256 checksums. The extension targets stable C extension
+API `C_STRUCT v1.5.6`, which supplies client-context configuration access.
+Older hosts reject the binary at load time; use published 0.2.0 for those hosts.
+
+For the community build, install Python 3.10+, CMake, and the same native library
+dependencies (or use the community toolchain's vcpkg manifest):
+
+```sh
+git submodule update --init --recursive
+make DUCKDB_TEST_VERSION=v1.5.6 configure
+make release
+make test_release
+```
+
+The submission artifact is
+`build/release/extension/geosupport/geosupport.duckdb_extension`.
+SQLLogicTests are offline and use an isolated temporary bundle store. The new
+community workflow also builds Linux x86-64 using DuckDB's pinned distribution
+toolchain. Its CI results must pass before submitting the descriptor template in
+`community/geosupport/description.yml.in`.
 
 On macOS, build the native Linux worker image and select it explicitly:
 
@@ -72,13 +99,20 @@ and never pull images implicitly. On Linux x86-64, leave `GEOSUPPORT_RUNTIME` un
 or set it to `local`; Docker is unnecessary.
 
 ```sh
-build/deps/duckdb -unsigned -bail -init /dev/null \
-  -cmd "LOAD '$PWD/build/native/geosupport.duckdb_extension';"
+build/deps/1.5.6/duckdb -unsigned -bail -init /dev/null \
+  -cmd "LOAD '$PWD/build/native/1.5.6/geosupport.duckdb_extension';"
 ```
 
 Use an absolute LOAD path with the hardened macOS CLI. Linux binaries built on a
 recent distribution are not automatically portable to older glibc systems; the
 community toolchain remains a release milestone.
+
+The adapter checks `enable_external_access` before every runtime request,
+including prepared statements and calls that reuse an existing worker. Disabling
+it blocks all `gs_*` operations. Arguments are limited to 1 MiB each, IPC frames
+to 128 MiB, and live workers to eight per database. Worker calls have a 300-second
+timeout; prompt DuckDB query cancellation during native I/O is still a
+publication gate, documented in the [publication plan](docs/community-publication.md).
 
 ## SQL and Python-hosted DuckDB
 
@@ -107,7 +141,7 @@ import duckdb
 from pathlib import Path
 
 con = duckdb.connect('planning.duckdb', config={'allow_unsigned_extensions': True})
-binary = Path('build/native/geosupport.duckdb_extension').resolve()
+binary = Path('build/native/1.5.6/geosupport.duckdb_extension').resolve()
 con.execute("LOAD '" + str(binary).replace("'", "''") + "'")
 con.execute("CALL gs_install('26c')")
 print(con.sql("SELECT gs_address('125','Worth St','Mn',release := '26c')").fetchone()[0])
