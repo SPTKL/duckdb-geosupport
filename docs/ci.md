@@ -9,7 +9,8 @@ publish from `main` or a version tag by enabling the `publish` input.
 ## Native Linux job: no Python or Docker
 
 The native job runs directly on an Ubuntu x86-64 runner. It uses C/C++, Make,
-shell, and the checksum-pinned DuckDB 1.4.4 CLI/shared library. Neither the build,
+shell, and checksum-pinned DuckDB 1.5.6 CLI/shared libraries. Version 0.3 requires
+the stable 1.5.6 C API; older hosts are tested for clean rejection. Neither the build,
 test harness, nor benchmark invokes Python or a container runtime. GitHub-hosted
 runners may have those programs preinstalled; this is a dependency/execution
 claim, not a claim that they are absent from the host OS.
@@ -19,6 +20,11 @@ script. The audit rejects Python/PyPy or Docker/Podman/containerd/nerdctl
 invocations, including absolute paths. The trace is uploaded even after failure.
 The benchmark runs under this exec tracing; no cross-host timing thresholds are
 used on shared CI infrastructure.
+
+The compatibility script verifies that 1.4.4 and 1.5.0 reject the new ABI floor
+without a metadata bypass. Historical 0.2 validation is preserved separately. See
+[DuckDB compatibility](duckdb-compatibility.md) for commands and published-binary
+evidence.
 
 The validation includes:
 
@@ -74,7 +80,7 @@ work on macOS; real engine execution is Linux x86-64 only.
 
 ## Benchmark output
 
-`build/native/benchmark.json` contains the DuckDB version, host, immutable bundle
+`build/native/<version>/benchmark.json` contains the DuckDB version, host, immutable bundle
 ID, startup/verification time, and three cold and warm timings for 2,000 distinct
 house-number requests on Broadway. Each cold trial starts a new worker/cache;
 each warm trial repeats exactly those requests. The output is consumed and
@@ -84,8 +90,8 @@ result materialization with column inputs to avoid constant folding.
 Cold runs measure parsing, engine calls, IPC, and serialization. Warm runs measure
 the worker result cache. Repeated rows exercise chunk deduplication. Some Broadway
 house numbers are rejects, so this is not representative citywide throughput.
-The Actions summary reports median rates; the `native-linux-results` artifact
-includes the JSON, logs, executable trace, and extension package. Failures in
+The Actions summary reports median rates; the `native-linux-results-<version>` artifacts
+include the JSON, logs, executable trace, and extension package. Failures in
 correctness or missing/empty benchmark output fail CI; timing variation alone
 does not.
 
@@ -100,7 +106,7 @@ The image repository is `ghcr.io/sptkl/duckdb-geosupport`:
 | `vX.Y.Z-26b` / `vX.Y.Z-26c` | Build from that version tag |
 | `sha-<full-commit>-26b` / `sha-<full-commit>-26c` | Exact tested source commit |
 
-Images target `linux/amd64`. Each includes DuckDB 1.4.4, the installed extension,
+Images target `linux/amd64`. New builds include DuckDB 1.5.6 by default, the installed extension,
 its embedded C++ worker, and one checksum-verified NYC engine/data release. Python,
 a compiler, and Docker itself are absent from the final image. Expect a large
 image because the real quarterly data is included (roughly 1.9 GiB unpacked).
@@ -135,3 +141,24 @@ docker run --rm --network none -i geosupport:26c < docker/smoke.sql
 
 NYC engine/data terms remain separate from this repository's MIT license. Image
 provisioning preserves the upstream bundle payload and its included documentation.
+
+## Community pipeline
+
+`.github/workflows/community.yml` uses the pinned `extension-ci-tools` distribution
+workflow for Linux x86-64, targeting 1.5.6 and the community repository's current
+2.0 source snapshot. Other platforms are explicitly excluded. A separate Ubuntu
+job runs `make configure release test_release` against stable and prerelease
+Python hosts. These jobs never download NYC bundles. The native workflow above
+still supplies real-engine coverage.
+
+`make test_release` deliberately runs the SQLLogicTests even on `linux_amd64`,
+where the upstream template still skips host tests for a historical wheel mismatch.
+The build container defers testing to the host to avoid running its host-created
+Python environment with a different interpreter.
+The runner gets a fresh store and ignores the local catalog override. Python is
+used for this build/test workflow only, never by the extension's runtime.
+
+The CMake build uses vcpkg's static curl/OpenSSL libraries under the official
+toolchain, and system libraries for local builds without vcpkg. Validate both
+the extension and embedded worker on the intended Linux baseline before release;
+a successful host-local build alone is not portable-binary evidence.

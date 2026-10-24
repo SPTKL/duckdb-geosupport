@@ -11,8 +11,19 @@ DUCKDB_EXTENSION_EXTERN
 namespace {
 using Runtime = gs::Manager;
 
+struct AccessContext {
+    duckdb_client_context context = nullptr;
+    ~AccessContext() { if (context) duckdb_destroy_client_context(&context); }
+    void Check() const {
+        if (!context) throw std::runtime_error("Cannot inspect DuckDB external access settings");
+        auto value = duckdb_client_context_get_config_option(context, "enable_external_access", nullptr);
+        bool allowed = value && !duckdb_is_null_value(value) && duckdb_get_bool(value);
+        if (value) duckdb_destroy_value(&value);
+        if (!allowed) throw std::runtime_error("Geosupport is disabled when enable_external_access is false");
+    }
+};
 struct FunctionData { std::shared_ptr<Runtime> runtime; std::string operation; };
-struct BoundData { json request; };
+struct BoundData { json request; AccessContext access; };
 struct ScanData { json rows; size_t offset = 0; bool requested = false; };
 template<class T> void Delete(void *p) { delete static_cast<T *>(p); }
 
@@ -27,14 +38,27 @@ json Input(duckdb_vector vector, idx_t row) {
     auto validity = duckdb_vector_get_validity(vector);
     if (validity && !duckdb_validity_row_is_valid(validity, row)) return nullptr;
     auto strings = static_cast<duckdb_string_t *>(duckdb_vector_get_data(vector));
+    if (duckdb_string_t_length(strings[row]) > 1024 * 1024)
+        throw std::runtime_error("Geosupport input exceeds 1 MiB per argument");
     return std::string(duckdb_string_t_data(&strings[row]), duckdb_string_t_length(strings[row]));
 }
 
 const char *FIELDS[] = {"bbl", "bin", "latitude", "longitude", "grc", "grc2", "message", "message2", "release", "engine_version", "bundle_id", "raw"};
 constexpr idx_t FIELD_COUNT = sizeof(FIELDS) / sizeof(FIELDS[0]);
 
+void ScalarInit(duckdb_init_info info) {
+    try {
+        auto state = std::make_unique<AccessContext>();
+        duckdb_scalar_function_init_get_client_context(info, &state->context);
+        state->Check();
+        duckdb_scalar_function_init_set_state(info, state.release(), Delete<AccessContext>);
+    } catch (const std::exception &error) { duckdb_scalar_function_init_set_error(info, error.what()); }
+}
+
 void Geocode(duckdb_function_info info, duckdb_data_chunk input, duckdb_vector output) {
     try {
+        auto access = static_cast<AccessContext *>(duckdb_scalar_function_get_state(info));
+        access->Check();
         auto extra = static_cast<FunctionData *>(duckdb_scalar_function_get_extra_info(info));
         json rows = json::array();
         idx_t count = duckdb_data_chunk_get_size(input);
@@ -47,7 +71,7 @@ void Geocode(duckdb_function_info info, duckdb_data_chunk input, duckdb_vector o
             if (function.is_null() || params.is_null() || mode.is_null()) { rows.push_back(nullptr); continue; }
             rows.push_back({{"function", function}, {"params", json::parse(params.get<std::string>())}, {"release", release}, {"mode", mode}});
         }
-        json results = extra->runtime->Request({{"op", "batch"}, {"rows", rows}});
+        json results = extra->runtime->Request({{"op", "batch"}, {"rows", rows}}, [access] { access->Check(); });
         if (!results.is_array() || results.size() != count) throw std::runtime_error("Runtime row count mismatch");
         for (idx_t row = 0; row < count; row++) {
             if (results[row].is_null()) { Null(output, row); continue; }
@@ -66,6 +90,7 @@ void Bind(duckdb_bind_info info) {
     try {
         auto extra = static_cast<FunctionData *>(duckdb_bind_get_extra_info(info));
         auto bound = std::make_unique<BoundData>();
+        duckdb_table_function_get_client_context(info, &bound->access.context);
         json args = json::array();
         for (idx_t i = 0; i < duckdb_bind_get_parameter_count(info); i++) {
             auto value = duckdb_bind_get_parameter(info, i);
@@ -94,8 +119,9 @@ void Scan(duckdb_function_info info, duckdb_data_chunk output) {
         auto extra = static_cast<FunctionData *>(duckdb_function_get_extra_info(info));
         auto bound = static_cast<BoundData *>(duckdb_function_get_bind_data(info));
         auto state = static_cast<ScanData *>(duckdb_function_get_init_data(info));
+        bound->access.Check();
         if (!state->requested) {
-            state->rows = extra->runtime->Request(bound->request);
+            state->rows = extra->runtime->Request(bound->request, [bound] { bound->access.Check(); });
             state->requested = true;
         }
         idx_t count = 0;
@@ -153,6 +179,7 @@ void Register(duckdb_connection connection) {
     duckdb_scalar_function_set_extra_info(function, new FunctionData{runtime, "batch"}, Delete<FunctionData>);
     duckdb_scalar_function_set_special_handling(function);
     duckdb_scalar_function_set_volatile(function);
+    duckdb_scalar_function_set_init(function, ScalarInit);
     duckdb_scalar_function_set_function(function, Geocode);
     auto status = duckdb_register_scalar_function(connection, function);
     duckdb_destroy_scalar_function(&function);

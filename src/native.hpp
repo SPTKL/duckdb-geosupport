@@ -1,6 +1,7 @@
 #pragma once
 #include "nlohmann/json.hpp"
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -9,7 +10,7 @@ namespace gs {
 using json = nlohmann::json;
 namespace fs = std::filesystem;
 constexpr size_t MAX_FRAME = 128 * 1024 * 1024;
-constexpr const char *VERSION = "0.2.0";
+constexpr const char *VERSION = "0.3.0";
 std::string Canonical(const json &value);
 std::string Hash(const fs::path &path);
 std::string HashBytes(const std::string &bytes);
@@ -37,7 +38,7 @@ class Manager {
 public:
     Manager();
     ~Manager();
-    json Request(const json &request);
+    json Request(const json &request, const std::function<void()> &check_access = {});
 private:
     struct Impl;
     std::unique_ptr<Impl> impl;

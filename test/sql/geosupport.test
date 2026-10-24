@@ -1,0 +1,49 @@
+# Offline adapter checks: no NYC downloads or worker processes.
+require geosupport
+
+query TT rowsort
+SELECT release, platform FROM gs_available_releases();
+----
+26b	linux_amd64
+26c	linux_amd64
+
+query I
+SELECT count(*) FROM gs_installed_releases();
+----
+0
+
+query I
+SELECT count(*) FROM gs_runtime_info();
+----
+0
+
+statement ok
+EXPLAIN SELECT * FROM gs_install('26c');
+
+statement ok
+EXPLAIN SELECT gs_address('125','Worth St','Mn',release := '26c');
+
+statement error
+SELECT gs_address('125','Worth St','Mn');
+----
+Select a release
+
+statement error
+CALL gs_load(NULL);
+----
+Lifecycle arguments cannot be NULL
+
+statement error
+SELECT gs_call('BL','bad json',release := '26c');
+----
+parse_error
+
+statement error
+SELECT gs_call('BL',repeat('x',1048577),release := '26c');
+----
+exceeds 1 MiB
+
+statement error
+SELECT gs_address('125','Worth St','Mn',release := '26c');
+----
+not installed

@@ -8,6 +8,12 @@ jobs:
   native:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        duckdb: ['1.5.6']
+    env:
+      DUCKDB_VERSION: ${{ matrix.duckdb }}
     steps:
       - uses: actions/checkout@v4
       - name: Install native toolchain
@@ -28,15 +34,15 @@ jobs:
             echo '### Native Linux benchmark'
             echo '| Workload | Rows/second |'
             echo '| --- | ---: |'
-            jq -r '"| Cold unique requests (median of 3) | \(.cold_median_rows_per_second | floor) |", "| Warm worker cache (median of 3) | \(.warm_median_rows_per_second | floor) |"' build/reports/benchmark.json
+            jq -r '"| Cold unique requests (median of 3) | \(.cold_median_rows_per_second | floor) |", "| Warm worker cache (median of 3) | \(.warm_median_rows_per_second | floor) |"' "build/reports/$DUCKDB_VERSION/benchmark.json"
             echo
-            jq -r '.limitations' build/reports/benchmark.json
+            jq -r '.limitations' "build/reports/$DUCKDB_VERSION/benchmark.json"
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: native-linux-results
+          name: native-linux-results-${{ matrix.duckdb }}
           path: |
             build/reports/
-            build/native/*.tar.gz
+            build/native/*/*.tar.gz
           if-no-files-found: error

@@ -1,8 +1,11 @@
 # Third-party components
 
-- **DuckDB C extension headers**: copied from `duckdb/extension-template-c` commit
-  `0718cc424a8214e085d1910329b800a0c738e645`. MIT license in
-  `vendor/duckdb/LICENSE`. https://github.com/duckdb/duckdb
+- **DuckDB C extension headers**: unmodified `duckdb.h` and `duckdb_extension.h`
+  from DuckDB tag `v1.5.6`, targeting stable C API v1.5.6. MIT license in
+  `vendor/duckdb/LICENSE`. https://github.com/duckdb/duckdb/tree/v1.5.6/src/include
+- **DuckDB community build tools**: submodule `extension-ci-tools`, pinned at
+  `2de802913caf5c9bba0ef267658b20f3cc0486c3`. Build/test tooling only.
+  https://github.com/duckdb/extension-ci-tools
 - **DuckDB metadata tool**: `scripts/append_extension_metadata.py`, from
   `duckdb/extension-ci-tools` commit `3fd6109fc01555673b7c7123eba8d0d143fe8ce4`.
   https://github.com/duckdb/extension-ci-tools
@@ -20,10 +23,20 @@
   macro. https://github.com/richgel999/miniz/tree/3.0.2
 - **PicoSHA2**: v1.0.1, small-object SHA-256 and hexadecimal helpers, MIT license
   in `vendor/picosha2/LICENSE`. https://github.com/okdshin/PicoSHA2/tree/v1.0.1
-- **libcurl** is dynamically linked for HTTPS downloads. Linux file hashing uses
-  dynamically linked OpenSSL; macOS uses system CommonCrypto. These dependencies
-  are supplied by the operating system/toolchain, not copied into the extension.
+- **libcurl** provides HTTPS downloads; **OpenSSL** provides Linux file hashing
+  and TLS. Local/native builds link system libraries. Community CMake builds
+  use the toolchain's vcpkg static dependencies; their licenses must accompany
+  release documentation. macOS uses system CommonCrypto for file hashing.
   https://curl.se/docs/copyright.html and https://www.openssl.org/source/license.html
+- **Community static dependency closure**: the pinned vcpkg curl port also
+  depends on zlib (zlib license, https://zlib.net/zlib_license.html). CMake's
+  Linux extension and worker statically link the compiler's libstdc++/libgcc,
+  subject to their licenses and the GCC Runtime Library Exception:
+  https://gcc.gnu.org/onlinedocs/libstdc++/manual/license.html and
+  https://www.gnu.org/licenses/gcc-exception-3.1.html. Before publication,
+  preserve the actual toolchain copyright/license files with release
+  documentation; local system-library validation does not establish the final
+  static dependency versions or notice set.
 
 The Geosupport engine and quarterly data are separate NYC distributions. Their
 terms are separate from the Python wrapper's MIT license. This repository stores

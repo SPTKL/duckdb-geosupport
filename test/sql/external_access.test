@@ -1,0 +1,61 @@
+# Check execution-time permissions, even after manager initialization and PREPARE.
+require geosupport
+
+query I
+SELECT count(*) FROM gs_available_releases();
+----
+2
+
+statement ok
+PREPARE catalog AS SELECT * FROM gs_available_releases();
+
+statement ok
+PREPARE geocode AS SELECT gs_address('125','Worth St','Mn',release := '26c');
+
+statement ok
+SET enable_external_access=false;
+
+statement error
+EXECUTE catalog;
+----
+enable_external_access
+
+statement error
+EXECUTE geocode;
+----
+enable_external_access
+
+statement error
+CALL gs_installed_releases();
+----
+enable_external_access
+
+statement error
+CALL gs_runtime_info();
+----
+enable_external_access
+
+statement error
+CALL gs_install('26c');
+----
+enable_external_access
+
+statement error
+CALL gs_import('26c','/does/not/exist');
+----
+enable_external_access
+
+statement error
+CALL gs_verify('26c');
+----
+enable_external_access
+
+statement error
+CALL gs_load('26c');
+----
+enable_external_access
+
+statement error
+CALL gs_unload('26c');
+----
+enable_external_access

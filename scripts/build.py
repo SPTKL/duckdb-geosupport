@@ -68,5 +68,5 @@ subprocess.run([compiler, adapter, common, manager, store, *zip_objects, '-lcurl
 import duckdb
 subprocess.run([sys.executable, str(ROOT / 'scripts/append_extension_metadata.py'), '-l', str(library),
     '-n', 'geosupport', '-o', str(out / 'geosupport.duckdb_extension'), '-p', duckdb.sql('PRAGMA platform').fetchone()[0],
-    '-dv', 'v1.2.0', '-ev', '0.2.0', '--abi-type', 'C_STRUCT'], check=True)
+    '-dv', 'v1.5.6', '-ev', '0.3.0', '--abi-type', 'C_STRUCT'], check=True)
 print('Built Python-free extension:', out / 'geosupport.duckdb_extension')

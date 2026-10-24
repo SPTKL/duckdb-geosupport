@@ -1,11 +1,14 @@
 # Portable Linux binary for Colab and Ubuntu 22.04/24.04. Build tooling stays here.
+ARG DUCKDB_VERSION=1.5.6
 FROM ubuntu:22.04@sha256:0a9887931b0e38af2e3487ed39e29436b0535c4f3f52e57745baaf79d1898956 AS build
+ARG DUCKDB_VERSION
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     g++ make libcurl4-openssl-dev libssl-dev ca-certificates curl unzip \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /source
 COPY . .
-RUN make fetch && make -j2 test && make package
+RUN make DUCKDB_VERSION="$DUCKDB_VERSION" fetch && make -j2 DUCKDB_VERSION="$DUCKDB_VERSION" test && make DUCKDB_VERSION="$DUCKDB_VERSION" package
 
 FROM scratch AS artifacts
-COPY --from=build /source/build/native/geosupport-0.2.0-Linux-x86_64.tar.gz /
+ARG DUCKDB_VERSION
+COPY --from=build /source/build/native/${DUCKDB_VERSION}/geosupport-0.3.0-Linux-x86_64.tar.gz /
